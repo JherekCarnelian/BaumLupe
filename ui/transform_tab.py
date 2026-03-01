@@ -4,6 +4,7 @@ Nutzt saxonche (Saxon/C Python-Bindings) statt Node.js – keine externe Laufzei
 Die Transformation läuft in einem QThread, damit die UI nicht blockiert.
 """
 
+import json
 import tempfile
 from pathlib import Path
 
@@ -14,6 +15,31 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QThread, Signal
 
 from ui.xml_tree import XmlTreeWidget
+
+# Einstellungsdatei im Aufruf-Verzeichnis (Dot-File → in Dateimanagern versteckt)
+_PREFS_FILE = Path.cwd() / ".xmlviewer_prefs.json"
+_MAX_RECENT = 10
+
+
+def _load_prefs() -> dict:
+    """Liest die Einstellungsdatei; gibt leeres Dict zurück bei Fehler."""
+    try:
+        return json.loads(_PREFS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_prefs(prefs: dict) -> None:
+    try:
+        _PREFS_FILE.write_text(json.dumps(prefs, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _load_recent(prefs: dict) -> list[str]:
+    """Extrahiert die Recent-XSL-Liste aus den Prefs; filtert fehlende Dateien."""
+    paths = prefs.get("recent_xsl", [])
+    return [p for p in paths if isinstance(p, str) and Path(p).is_file()]
 
 
 class TransformWorker(QThread):
@@ -52,6 +78,9 @@ class TransformTab(QWidget):
         self._xml_path: str | None = None
         self._worker: TransformWorker | None = None
         self._tmp_path: str | None = None
+        self._current_xsl: str | None = None
+        self._prefs: dict = _load_prefs()
+        self._recent: list[str] = _load_recent(self._prefs)
         self._setup_ui()
         self._refresh_stylesheet_list()
 
@@ -94,8 +123,22 @@ class TransformTab(QWidget):
 
     def _refresh_stylesheet_list(self) -> None:
         self._combo.clear()
-        for f in sorted(Path(self._stylesheets_dir).glob("*.xsl")):
+        stylesheets_dir = Path(self._stylesheets_dir).resolve()
+
+        # Zuletzt verwendete externe Dateien zuerst (nicht im stylesheets-Verzeichnis)
+        for path in self._recent:
+            if Path(path).resolve().parent != stylesheets_dir:
+                self._combo.addItem(f"\u2605 {Path(path).name}", path)
+
+        # Dateien aus dem stylesheets-Verzeichnis
+        for f in sorted(stylesheets_dir.glob("*.xsl")):
             self._combo.addItem(f.name, str(f))
+
+        # Zuletzt verwendetes Stylesheet vorauswählen
+        if self._recent:
+            idx = self._combo.findData(self._recent[0])
+            if idx >= 0:
+                self._combo.setCurrentIndex(idx)
 
     # ------------------------------------------------------------------
     # Slots
@@ -152,6 +195,7 @@ class TransformTab(QWidget):
             self._worker.quit()
             self._worker.wait()
 
+        self._current_xsl = xsl_path
         self._worker = TransformWorker(self._xml_path, xsl_path)
         self._worker.result_ready.connect(self._on_result)
         self._worker.error.connect(self._on_error)
@@ -159,6 +203,8 @@ class TransformTab(QWidget):
 
     def _on_result(self, result: str) -> None:
         self._btn_transform.setEnabled(True)
+        if self._current_xsl:
+            self._add_to_recent(self._current_xsl)
         # Ergebnis in Tempfile schreiben und als XML-Tree laden
         tmp = tempfile.NamedTemporaryFile(suffix=".xml", delete=False,
                                           mode="w", encoding="utf-8")
@@ -170,3 +216,12 @@ class TransformTab(QWidget):
     def _on_error(self, message: str) -> None:
         self._btn_transform.setEnabled(True)
         QMessageBox.warning(self, "Transformationsfehler", message)
+
+    def _add_to_recent(self, path: str) -> None:
+        """Fügt einen XSL-Pfad an den Anfang der Recent-Liste und speichert."""
+        path = str(Path(path).resolve())
+        self._recent = [p for p in self._recent if p != path]
+        self._recent.insert(0, path)
+        self._recent = self._recent[:_MAX_RECENT]
+        self._prefs["recent_xsl"] = self._recent
+        _save_prefs(self._prefs)
