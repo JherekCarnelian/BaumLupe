@@ -2,6 +2,7 @@
 
 from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeyEvent
 import xml.etree.ElementTree as ET
 
 
@@ -35,6 +36,14 @@ class XmlTreeWidget(QTreeWidget):
         self.setColumnCount(1)
         self.setAlternatingRowColors(True)
         self._current_path: str | None = None
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() == Qt.Key.Key_Space:
+            item = self.currentItem()
+            if item and item.childCount() > 0:
+                item.setExpanded(not item.isExpanded())
+                return
+        super().keyPressEvent(event)
 
     def load_xml(self, path: str) -> None:
         """Parst die XML-Datei und füllt den Tree."""
