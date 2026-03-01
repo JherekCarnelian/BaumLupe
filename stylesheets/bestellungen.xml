@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bestellungen>
+
+  <bestellung id="B001" datum="2026-02-15" status="abgeschlossen">
+    <kunde id="K42">
+      <name>Müller GmbH</name>
+      <adresse>
+        <strasse>Hauptstraße 1</strasse>
+        <plz>10115</plz>
+        <ort>Berlin</ort>
+        <land>DE</land>
+      </adresse>
+      <kontakt>
+        <email>info@mueller-gmbh.de</email>
+        <telefon>030-123456</telefon>
+      </kontakt>
+    </kunde>
+    <positionen>
+      <position nr="1">
+        <artikel nr="A201">Schreibtisch Eckform</artikel>
+        <menge einheit="Stk">2</menge>
+        <einzelpreis waehrung="EUR">349.00</einzelpreis>
+      </position>
+      <position nr="2">
+        <artikel nr="A305">Bürostuhl ergonomisch</artikel>
+        <menge einheit="Stk">4</menge>
+        <einzelpreis waehrung="EUR">189.50</einzelpreis>
+      </position>
+      <position nr="3">
+        <artikel nr="B012">Tischlampe LED</artikel>
+        <menge einheit="Stk">4</menge>
+        <einzelpreis waehrung="EUR">39.90</einzelpreis>
+      </position>
+    </positionen>
+    <gesamtbetrag waehrung="EUR">1614.60</gesamtbetrag>
+  </bestellung>
+
+  <bestellung id="B002" datum="2026-02-28" status="offen">
+    <kunde id="K07">
+      <name>Schmidt &amp; Partner</name>
+      <adresse>
+        <strasse>Industrieweg 88</strasse>
+        <plz>80331</plz>
+        <ort>München</ort>
+        <land>DE</land>
+      </adresse>
+      <kontakt>
+        <email>einkauf@schmidt-partner.de</email>
+        <telefon>089-987654</telefon>
+      </kontakt>
+    </kunde>
+    <positionen>
+      <position nr="1">
+        <artikel nr="C099">Server-Rack 42HE</artikel>
+        <menge einheit="Stk">1</menge>
+        <einzelpreis waehrung="EUR">1290.00</einzelpreis>
+      </position>
+      <position nr="2">
+        <artikel nr="C104">Patchpanel 24-Port</artikel>
+        <menge einheit="Stk">2</menge>
+        <einzelpreis waehrung="EUR">74.50</einzelpreis>
+      </position>
+    </positionen>
+    <gesamtbetrag waehrung="EUR">1439.00</gesamtbetrag>
+  </bestellung>
+
+</bestellungen>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bibliothek>
+  <buch isbn="978-3-16-148410-0" sprache="de">
+    <titel>Die Verwandlung</titel>
+    <autor>Franz Kafka</autor>
+    <jahr>1915</jahr>
+    <genre>Erzählung</genre>
+  </buch>
+  <buch isbn="978-0-06-112008-4" sprache="en">
+    <titel>To Kill a Mockingbird</titel>
+    <autor>Harper Lee</autor>
+    <jahr>1960</jahr>
+    <genre>Roman</genre>
+  </buch>
+  <buch isbn="978-3-518-36836-8" sprache="de">
+    <titel>Der Prozess</titel>
+    <autor>Franz Kafka</autor>
+    <jahr>1925</jahr>
+    <genre>Roman</genre>
+  </buch>
+  <buch isbn="978-0-7432-7356-5" sprache="en">
+    <titel>1984</titel>
+    <autor>George Orwell</autor>
+    <jahr>1949</jahr>
+    <genre>Dystopie</genre>
+  </buch>
+</bibliothek>

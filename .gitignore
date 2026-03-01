@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
+
+# Temporäre Dateien
+*.tmp
+/tmp/
+
+# IDE
+.venv/
+venv/
+.idea/
+.vscode/
