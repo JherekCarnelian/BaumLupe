@@ -8,6 +8,9 @@ build/
 dist/
 *.spec.bak
 
+# Lokale Nutzer-Prefs (projektverzeichnis-spezifisch, nicht versionieren)
+.xmlviewer_prefs.json
+
 # Temporäre Dateien
 *.tmp
 /tmp/
