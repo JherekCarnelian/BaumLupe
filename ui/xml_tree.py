@@ -15,22 +15,13 @@ def _build_tree(parent_item: QTreeWidgetItem, element: ET.Element) -> None:
     for child in element:
         label = _namespace_local(child.tag)
 
-        # Attribut-Kurzvorschau im Label
+        # Attribut-Kurzvorschau im Label; Textinhalt direkt inline anfügen
         attrs = " ".join(f'{k}="{v}"' for k, v in child.attrib.items())
-        display = f"<{label}" + (f" {attrs}" if attrs else "") + ">"
+        text = (child.text or "").strip()
+        display = f"<{label}" + (f" {attrs}" if attrs else "") + ">" + text
 
         item = QTreeWidgetItem(parent_item, [display])
         item.setData(0, Qt.ItemDataRole.UserRole, child)
-
-        # Textinhalt als eigenes Kind-Item
-        text = (child.text or "").strip()
-        if text:
-            text_item = QTreeWidgetItem(item, [text])
-            text_item.setForeground(0, text_item.foreground(0))  # Standard-Farbe
-            # Kursiv via Font
-            font = text_item.font(0)
-            font.setItalic(True)
-            text_item.setFont(0, font)
 
         _build_tree(item, child)
 
