@@ -5,12 +5,12 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QMainWindow, QTabWidget, QWidget, QVBoxLayout,
-    QFileDialog, QStatusBar,
+    QFileDialog, QStatusBar, QDialog,
 )
 from PySide6.QtCore import QSettings
 from PySide6.QtGui import QAction, QKeySequence
 
-from ui.xml_tree import XmlTreeWidget
+from ui.xml_tree import XmlTreeWidget, load_style_config, save_style_config
 from ui.transform_tab import TransformTab
 
 _STYLESHEETS_DIR = str(Path(__file__).parent.parent / "stylesheets")
@@ -71,6 +71,11 @@ class MainWindow(QMainWindow):
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
 
+        settings_menu = menubar.addMenu("&Einstellungen")
+        style_action = QAction("&Stil…", self)
+        style_action.triggered.connect(self._open_style_settings)
+        settings_menu.addAction(style_action)
+
         view_menu = menubar.addMenu("&Ansicht")
 
         expand_action = QAction("Alle &ausklappen", self)
@@ -84,6 +89,21 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Laden
     # ------------------------------------------------------------------
+
+    def _open_style_settings(self) -> None:
+        from ui.settings_dialog import SettingsDialog
+        original = load_style_config()
+
+        def preview(config: dict) -> None:
+            self._xml_tree.apply_style_config(config)
+            self._transform_tab.apply_style_config(config)
+
+        dlg = SettingsDialog(current_config=original, on_preview=preview, parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            save_style_config(dlg.get_config())
+            preview(dlg.get_config())
+        else:
+            preview(original)  # Änderungen der Live-Vorschau zurückrollen
 
     def _open_file(self) -> None:
         last_dir = _SHARED_SETTINGS.value("last_dir", str(Path.home()))

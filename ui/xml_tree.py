@@ -1,51 +1,74 @@
 """XML Tree-View Widget – zeigt eine XML-Datei als aufklappbaren Baum.
 
 Drei Spalten: Elementname | Textwert | Attribute
-Jede Spalte hat eigene Farb- und Schriftgebung.
+Stil (Farben, Schriften) wird aus QSettings geladen und kann
+zur Laufzeit via apply_style_config() geändert werden.
 """
 
 from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSettings
 from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QKeyEvent, QPainter, QPixmap
 import xml.etree.ElementTree as ET
-
-# ==============================================================================
-# STYLE-KONFIGURATION – hier Farben, Schriften und Spaltenbreiten anpassen
-# ==============================================================================
-
-# Farben (CSS-Hex-Werte)
-COLOR_ELEMENT = "#1565C0"   # Blau       – Elementname
-COLOR_VALUE   = "#2E7D32"   # Grün       – Textwert
-COLOR_ATTR    = "#BF360C"   # Rot-Orange – Attribute
-
-# Schrift: Elementname
-FONT_ELEMENT_BOLD   = True
-FONT_ELEMENT_ITALIC = False
-FONT_ELEMENT_SIZE_DELTA = 0   # relativ zur System-Schriftgröße (z.B. +1, -1, 0)
-
-# Schrift: Textwert
-FONT_VALUE_BOLD   = False
-FONT_VALUE_ITALIC = False
-FONT_VALUE_SIZE_DELTA = 0
-
-# Schrift: Attribute
-FONT_ATTR_BOLD   = False
-FONT_ATTR_ITALIC = True
-FONT_ATTR_SIZE_DELTA = -1   # etwas kleiner als der Rest
-
-# Icon: abgerundetes Rechteck in COLOR_ELEMENT (None → kein Icon)
-ICON_ELEMENT_ENABLED = True
-
-# Initiale Spaltenbreiten in Pixeln (letzte Spalte dehnt sich automatisch)
-COL_WIDTH_ELEMENT = 200
-COL_WIDTH_VALUE   = 240
-
-# ==============================================================================
 
 _COL_ELEMENT = 0
 _COL_VALUE   = 1
 _COL_ATTRS   = 2
 
+# Standardwerte – gelten wenn QSettings noch keinen Wert enthält
+STYLE_DEFAULTS: dict = {
+    "color_element":           "#1565C0",
+    "color_value":             "#2E7D32",
+    "color_attr":              "#BF360C",
+    "font_element_bold":       True,
+    "font_element_italic":     False,
+    "font_element_size_delta": 0,
+    "font_value_bold":         False,
+    "font_value_italic":       False,
+    "font_value_size_delta":   0,
+    "font_attr_bold":          False,
+    "font_attr_italic":        True,
+    "font_attr_size_delta":    -1,
+    "icon_element_enabled":    True,
+    "col_width_element":       200,
+    "col_width_value":         240,
+}
+
+
+def _coerce(value, default):
+    """Konvertiert QSettings-Rückgabewert sicher in den Typ des Default-Wertes.
+    Nötig weil QSettings auf Windows/Linux unterschiedliche Typen zurückgibt.
+    """
+    if isinstance(default, bool):
+        if isinstance(value, bool):
+            return value
+        return str(value).lower() in ("true", "1", "yes")
+    if isinstance(default, int):
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return default
+    return str(value) if value is not None else default
+
+
+def load_style_config() -> dict:
+    """Liest Stil-Einstellungen aus QSettings; fehlende Keys werden mit STYLE_DEFAULTS gefüllt."""
+    s = QSettings("xmlviewer", "xmlviewer")
+    return {
+        key: _coerce(s.value(f"styles/{key}", default), default)
+        for key, default in STYLE_DEFAULTS.items()
+    }
+
+
+def save_style_config(config: dict) -> None:
+    """Schreibt Stil-Einstellungen in QSettings."""
+    s = QSettings("xmlviewer", "xmlviewer")
+    for key, value in config.items():
+        s.setValue(f"styles/{key}", value)
+
+
+# ---------------------------------------------------------------------------
+# Interne Hilfsklassen / -funktionen
+# ---------------------------------------------------------------------------
 
 def _namespace_local(tag: str) -> str:
     return tag.split("}")[-1] if "}" in tag else tag
@@ -74,18 +97,22 @@ def _make_font(bold: bool, italic: bool, size_delta: int) -> QFont:
 
 
 class _TreeStyle:
-    """Hält wiederverwendbare Styling-Objekte (muss nach QApplication-Start erzeugt werden)."""
+    """Hält wiederverwendbare Styling-Objekte; wird aus config-Dict gebaut."""
 
-    def __init__(self):
-        self.font_element = _make_font(FONT_ELEMENT_BOLD, FONT_ELEMENT_ITALIC, FONT_ELEMENT_SIZE_DELTA)
-        self.font_value   = _make_font(FONT_VALUE_BOLD,   FONT_VALUE_ITALIC,   FONT_VALUE_SIZE_DELTA)
-        self.font_attr    = _make_font(FONT_ATTR_BOLD,    FONT_ATTR_ITALIC,    FONT_ATTR_SIZE_DELTA)
+    def __init__(self, config: dict):
+        def b(key):  return bool(config.get(key, STYLE_DEFAULTS[key]))
+        def i(key):  return int(config.get(key, STYLE_DEFAULTS[key]))
+        def s(key):  return str(config.get(key, STYLE_DEFAULTS[key]))
 
-        self.brush_element = QBrush(QColor(COLOR_ELEMENT))
-        self.brush_value   = QBrush(QColor(COLOR_VALUE))
-        self.brush_attr    = QBrush(QColor(COLOR_ATTR))
+        self.font_element = _make_font(b("font_element_bold"), b("font_element_italic"), i("font_element_size_delta"))
+        self.font_value   = _make_font(b("font_value_bold"),   b("font_value_italic"),   i("font_value_size_delta"))
+        self.font_attr    = _make_font(b("font_attr_bold"),    b("font_attr_italic"),    i("font_attr_size_delta"))
 
-        self.icon_element = _make_icon(QColor(COLOR_ELEMENT)) if ICON_ELEMENT_ENABLED else QIcon()
+        self.brush_element = QBrush(QColor(s("color_element")))
+        self.brush_value   = QBrush(QColor(s("color_value")))
+        self.brush_attr    = QBrush(QColor(s("color_attr")))
+
+        self.icon_element = _make_icon(QColor(s("color_element"))) if b("icon_element_enabled") else QIcon()
 
 
 def _apply_style(item: QTreeWidgetItem, style: _TreeStyle) -> None:
@@ -100,7 +127,6 @@ def _apply_style(item: QTreeWidgetItem, style: _TreeStyle) -> None:
 
 def _build_tree(parent_item: QTreeWidgetItem, element: ET.Element,
                 style: _TreeStyle) -> None:
-    """Rekursiv Kindelemente als dreispaltige TreeWidgetItems einfügen."""
     for child in element:
         label = _namespace_local(child.tag)
         attrs = "  ".join(f'{k}="{v}"' for k, v in child.attrib.items())
@@ -116,6 +142,10 @@ def _build_tree(parent_item: QTreeWidgetItem, element: ET.Element,
         _build_tree(item, child, style)
 
 
+# ---------------------------------------------------------------------------
+# Öffentliches Widget
+# ---------------------------------------------------------------------------
+
 class XmlTreeWidget(QTreeWidget):
     """Ein QTreeWidget spezialisiert auf XML-Darstellung (dreispaltig)."""
 
@@ -125,10 +155,11 @@ class XmlTreeWidget(QTreeWidget):
         self.setHeaderLabels(["Element", "Wert", "Attribute"])
         self.setAlternatingRowColors(True)
         self._current_path: str | None = None
-        self._style = _TreeStyle()
 
-        self.setColumnWidth(_COL_ELEMENT, COL_WIDTH_ELEMENT)
-        self.setColumnWidth(_COL_VALUE,   COL_WIDTH_VALUE)
+        config = load_style_config()
+        self._style = _TreeStyle(config)
+        self.setColumnWidth(_COL_ELEMENT, int(config["col_width_element"]))
+        self.setColumnWidth(_COL_VALUE,   int(config["col_width_value"]))
         self.header().setStretchLastSection(True)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
@@ -138,6 +169,19 @@ class XmlTreeWidget(QTreeWidget):
                 item.setExpanded(not item.isExpanded())
                 return
         super().keyPressEvent(event)
+
+    def apply_style_config(self, config: dict) -> None:
+        """Übernimmt neue Stil-Einstellungen und stylt alle sichtbaren Items neu."""
+        self._style = _TreeStyle(config)
+        self.setColumnWidth(_COL_ELEMENT, int(config.get("col_width_element", STYLE_DEFAULTS["col_width_element"])))
+        self.setColumnWidth(_COL_VALUE,   int(config.get("col_width_value",   STYLE_DEFAULTS["col_width_value"])))
+        self._restyle_items(self.invisibleRootItem())
+
+    def _restyle_items(self, parent: QTreeWidgetItem) -> None:
+        for i in range(parent.childCount()):
+            item = parent.child(i)
+            _apply_style(item, self._style)
+            self._restyle_items(item)
 
     def load_xml(self, path: str) -> None:
         """Parst die XML-Datei und füllt den Tree."""

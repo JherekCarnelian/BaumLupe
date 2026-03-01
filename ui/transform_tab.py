@@ -213,6 +213,10 @@ class TransformTab(QWidget):
         self._tmp_path = tmp.name
         self._tree.load_xml(tmp.name)
 
+    def apply_style_config(self, config: dict) -> None:
+        """Gibt neue Stil-Einstellungen an den Ergebnis-Tree weiter."""
+        self._tree.apply_style_config(config)
+
     def _on_error(self, message: str) -> None:
         self._btn_transform.setEnabled(True)
         QMessageBox.warning(self, "Transformationsfehler", message)
