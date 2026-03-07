@@ -79,16 +79,22 @@ class MainWindow(QMainWindow):
         view_menu = menubar.addMenu("&Ansicht")
 
         expand_action = QAction("Alle &ausklappen", self)
-        expand_action.triggered.connect(self._xml_tree.expandAll)
+        expand_action.triggered.connect(lambda: self._active_tree().expandAll())
         view_menu.addAction(expand_action)
 
         collapse_action = QAction("Alle &einklappen", self)
-        collapse_action.triggered.connect(self._xml_tree.collapseAll)
+        collapse_action.triggered.connect(lambda: self._active_tree().collapseAll())
         view_menu.addAction(collapse_action)
 
     # ------------------------------------------------------------------
     # Laden
     # ------------------------------------------------------------------
+
+    def _active_tree(self):
+        """Gibt den Tree des aktuell sichtbaren Tabs zurück."""
+        if self._tabs.currentWidget() is self._transform_tab:
+            return self._transform_tab.result_tree
+        return self._xml_tree
 
     def _open_style_settings(self) -> None:
         from ui.settings_dialog import SettingsDialog

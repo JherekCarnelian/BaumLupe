@@ -213,6 +213,11 @@ class TransformTab(QWidget):
         self._tmp_path = tmp.name
         self._tree.load_xml(tmp.name)
 
+    @property
+    def result_tree(self):
+        """Gibt den Ergebnis-Tree zurück (für Expand/Collapse aus dem Hauptmenü)."""
+        return self._tree
+
     def apply_style_config(self, config: dict) -> None:
         """Gibt neue Stil-Einstellungen an den Ergebnis-Tree weiter."""
         self._tree.apply_style_config(config)
