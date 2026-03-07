@@ -12,7 +12,8 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QComboBox, QLabel, QFileDialog, QMessageBox,
 )
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtGui import QKeySequence, QShortcut
 
 from ui.xml_tree import XmlTreeWidget
 
@@ -72,6 +73,8 @@ class TransformWorker(QThread):
 class TransformTab(QWidget):
     """Widget für die XSLT-Transformation."""
 
+    navigate_to_source = Signal(int)  # DFS-Index des Quellknotens → Dual-Pane-Navigation
+
     def __init__(self, stylesheets_dir: str, parent=None):
         super().__init__(parent)
         self._stylesheets_dir = stylesheets_dir
@@ -120,6 +123,11 @@ class TransformTab(QWidget):
 
         # Automatisch transformieren wenn Stylesheet gewechselt wird
         self._combo.currentIndexChanged.connect(self._auto_transform)
+
+        # F3: zum Quellknoten im linken Pane springen
+        shortcut = QShortcut(QKeySequence(Qt.Key.Key_F3), self)
+        shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        shortcut.activated.connect(self._navigate_to_source)
 
     def _refresh_stylesheet_list(self) -> None:
         self._combo.clear()
@@ -225,6 +233,22 @@ class TransformTab(QWidget):
     def _on_error(self, message: str) -> None:
         self._btn_transform.setEnabled(True)
         QMessageBox.warning(self, "Transformationsfehler", message)
+
+    def _navigate_to_source(self) -> None:
+        """F3: data-src-idx aus dem selektierten Ergebnis-Item lesen und Signal senden."""
+        item = self._tree.currentItem()
+        if item is None:
+            return
+        element = item.data(0, Qt.ItemDataRole.UserRole)  # ET.Element aus UserRole
+        if element is None:
+            return
+        idx_str = element.attrib.get("data-src-idx")
+        if idx_str is None:
+            return
+        try:
+            self.navigate_to_source.emit(int(idx_str))
+        except ValueError:
+            pass
 
     def _add_to_recent(self, path: str) -> None:
         """Fügt einen XSL-Pfad an den Anfang der Recent-Liste und speichert."""

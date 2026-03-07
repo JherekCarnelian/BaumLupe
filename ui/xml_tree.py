@@ -126,7 +126,8 @@ def _apply_style(item: QTreeWidgetItem, style: _TreeStyle) -> None:
 
 
 def _build_tree(parent_item: QTreeWidgetItem, element: ET.Element,
-                style: _TreeStyle) -> None:
+                style: _TreeStyle,
+                elem_to_idx: dict, idx_to_item: dict) -> None:
     for child in element:
         label = _namespace_local(child.tag)
         attrs = "  ".join(f'{k}="{v}"' for k, v in child.attrib.items())
@@ -139,7 +140,8 @@ def _build_tree(parent_item: QTreeWidgetItem, element: ET.Element,
         item.setData(_COL_ELEMENT, Qt.ItemDataRole.UserRole, child)
         _apply_style(item, style)
 
-        _build_tree(item, child, style)
+        idx_to_item[elem_to_idx[id(child)]] = item
+        _build_tree(item, child, style, elem_to_idx, idx_to_item)
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +157,7 @@ class XmlTreeWidget(QTreeWidget):
         self.setHeaderLabels(["Element", "Wert", "Attribute"])
         self.setAlternatingRowColors(True)
         self._current_path: str | None = None
+        self._src_idx_to_item: dict[int, QTreeWidgetItem] = {}
 
         config = load_style_config()
         self._style = _TreeStyle(config)
@@ -183,9 +186,14 @@ class XmlTreeWidget(QTreeWidget):
             _apply_style(item, self._style)
             self._restyle_items(item)
 
+    def find_by_src_idx(self, idx: int) -> QTreeWidgetItem | None:
+        """Gibt das Tree-Item zum gegebenen DFS-Index zurück (für Dual-Pane-Navigation)."""
+        return self._src_idx_to_item.get(idx)
+
     def load_xml(self, path: str) -> None:
         """Parst die XML-Datei und füllt den Tree."""
         self.clear()
+        self._src_idx_to_item = {}
         self._current_path = path
 
         try:
@@ -193,6 +201,9 @@ class XmlTreeWidget(QTreeWidget):
         except ET.ParseError as exc:
             QTreeWidgetItem(self, [f"Parse-Fehler: {exc}"])
             return
+
+        # DFS-Index-Mapping: id(element) → idx (identisch mit ET.iter()-Reihenfolge)
+        elem_to_idx = {id(el): idx for idx, el in enumerate(tree.iter())}
 
         root = tree.getroot()
         label = _namespace_local(root.tag)
@@ -206,5 +217,6 @@ class XmlTreeWidget(QTreeWidget):
         root_item.setData(_COL_ELEMENT, Qt.ItemDataRole.UserRole, root)
         _apply_style(root_item, self._style)
 
-        _build_tree(root_item, root, self._style)
+        self._src_idx_to_item[elem_to_idx[id(root)]] = root_item
+        _build_tree(root_item, root, self._style, elem_to_idx, self._src_idx_to_item)
         self.expandToDepth(2)

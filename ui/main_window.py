@@ -64,6 +64,8 @@ class MainWindow(QMainWindow):
         self._splitter.addWidget(self._transform_pane)
         self._splitter.setSizes([600, 600])
 
+        self._transform_pane.navigate_to_source.connect(self._on_navigate_to_source)
+
         self.setCentralWidget(self._splitter)
         self.setStatusBar(QStatusBar())
 
@@ -169,6 +171,19 @@ class MainWindow(QMainWindow):
 
     def _load_xsl(self, path: str) -> None:
         self._transform_pane.set_xsl_path(path)
+
+    def _on_navigate_to_source(self, idx: int) -> None:
+        """Springt im linken XML-Tree zum Knoten mit dem gegebenen DFS-Index."""
+        item = self._xml_tree.find_by_src_idx(idx)
+        if item is None:
+            return
+        # Alle Vorfahren aufklappen
+        parent = item.parent()
+        while parent is not None:
+            parent.setExpanded(True)
+            parent = parent.parent()
+        self._xml_tree.scrollToItem(item)
+        self._xml_tree.setCurrentItem(item)
 
     # ------------------------------------------------------------------
     # Geometrie
