@@ -138,6 +138,12 @@ class MainWindow(QMainWindow):
         shortcuts_action.triggered.connect(self._show_shortcuts)
         help_menu.addAction(shortcuts_action)
 
+        help_menu.addSeparator()
+
+        about_action = QAction("&Über…", self)
+        about_action.triggered.connect(self._show_about)
+        help_menu.addAction(about_action)
+
     # ------------------------------------------------------------------
     # Hilfe
     # ------------------------------------------------------------------
@@ -200,6 +206,17 @@ class MainWindow(QMainWindow):
         layout.addWidget(buttons)
 
         dlg.exec()
+
+    def _show_about(self) -> None:
+        from PySide6.QtWidgets import QMessageBox, QApplication
+        version = QApplication.applicationVersion()
+        QMessageBox.about(
+            self,
+            "Über XML Viewer",
+            f"<b>XML Viewer</b> {version}<br><br>"
+            "Dual-Pane XML-Viewer mit XSLT 3.0 Transformation.<br><br>"
+            "Tech-Stack: PySide6 · saxonche (Saxon/C)"
+        )
 
     # ------------------------------------------------------------------
     # Ansicht

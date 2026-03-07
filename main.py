@@ -16,6 +16,7 @@ import argparse
 
 from PySide6.QtWidgets import QApplication
 
+from version import __version__
 from ui.main_window import MainWindow
 
 
@@ -31,6 +32,7 @@ def main() -> None:
 
     app = QApplication(sys.argv)
     app.setApplicationName("XML Viewer")
+    app.setApplicationVersion(__version__)
     app.setOrganizationName("xmlviewer")
 
     window = MainWindow()
