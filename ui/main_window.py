@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
 )
 from PySide6.QtCore import Qt, QSettings
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QKeySequence, QShortcut
 
 from ui.xml_tree import XmlTreeWidget, load_style_config, save_style_config
 from ui.transform_tab import TransformTab
@@ -85,6 +85,10 @@ class MainWindow(QMainWindow):
         self._splitter.setSizes([600, 600])
 
         self._transform_pane.navigate_to_source.connect(self._on_navigate_to_source)
+
+        # F6: Fokus zwischen linker und rechter Pane wechseln
+        sc_focus = QShortcut(QKeySequence(Qt.Key.Key_F6), self)
+        sc_focus.activated.connect(self._toggle_pane_focus)
 
         self.setCentralWidget(self._splitter)
         self.setStatusBar(QStatusBar())
@@ -203,6 +207,15 @@ class MainWindow(QMainWindow):
 
     def _load_xsl(self, path: str) -> None:
         self._transform_pane.set_xsl_path(path)
+
+    def _toggle_pane_focus(self) -> None:
+        """F6: Fokus zwischen linker (XML) und rechter (Transform) Pane wechseln."""
+        from PySide6.QtWidgets import QApplication
+        focus = QApplication.focusWidget()
+        if focus is not None and self._transform_pane.isAncestorOf(focus):
+            self._xml_tree.setFocus()
+        else:
+            self._transform_pane.result_tree.setFocus()
 
     def _on_navigate_to_source(self, idx: int) -> None:
         """Springt im linken XML-Tree zum Knoten mit dem gegebenen DFS-Index."""

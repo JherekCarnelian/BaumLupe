@@ -10,10 +10,13 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QComboBox, QLabel, QFileDialog, QMessageBox,
+    QComboBox, QLabel, QFileDialog, QMessageBox, QMenu,
 )
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
+
+# Shortcuts für "Links anspringen" – F3 bleibt primär, weitere als Alternativen
+_JUMP_SHORTCUTS = ["F3", "Ctrl+Return", "Ctrl+Space"]
 
 from ui.xml_tree import XmlTreeWidget
 
@@ -124,10 +127,15 @@ class TransformTab(QWidget):
         # Automatisch transformieren wenn Stylesheet gewechselt wird
         self._combo.currentIndexChanged.connect(self._auto_transform)
 
-        # F3: zum Quellknoten im linken Pane springen
-        shortcut = QShortcut(QKeySequence(Qt.Key.Key_F3), self)
-        shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-        shortcut.activated.connect(self._navigate_to_source)
+        # Shortcuts: zum Quellknoten im linken Pane springen
+        for key in _JUMP_SHORTCUTS:
+            sc = QShortcut(QKeySequence(key), self)
+            sc.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            sc.activated.connect(self._navigate_to_source)
+
+        # Kontextmenü im Ergebnis-Tree
+        self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._tree.customContextMenuRequested.connect(self._show_context_menu)
 
     def _refresh_stylesheet_list(self) -> None:
         self._combo.clear()
@@ -233,6 +241,36 @@ class TransformTab(QWidget):
     def _on_error(self, message: str) -> None:
         self._btn_transform.setEnabled(True)
         QMessageBox.warning(self, "Transformationsfehler", message)
+
+    def _show_context_menu(self, pos) -> None:
+        """Kontextmenü bei Rechtsklick im Ergebnis-Tree."""
+        item = self._tree.itemAt(pos)
+        if item is None:
+            return
+        self._tree.setCurrentItem(item)
+
+        has_children = item.childCount() > 0
+        element = item.data(0, Qt.ItemDataRole.UserRole)
+        has_src_idx = (element is not None and
+                       "xmlview-src-idx" in element.attrib)
+
+        menu = QMenu(self._tree)
+
+        act_expand = menu.addAction("Ausklappen")
+        act_expand.setEnabled(has_children and not item.isExpanded())
+        act_expand.triggered.connect(lambda: item.setExpanded(True))
+
+        act_collapse = menu.addAction("Einklappen")
+        act_collapse.setEnabled(has_children and item.isExpanded())
+        act_collapse.triggered.connect(lambda: item.setExpanded(False))
+
+        menu.addSeparator()
+
+        act_jump = menu.addAction("Links anspringen  (F3)")
+        act_jump.setEnabled(has_src_idx)
+        act_jump.triggered.connect(self._navigate_to_source)
+
+        menu.exec(self._tree.viewport().mapToGlobal(pos))
 
     def _navigate_to_source(self) -> None:
         """F3: xmlview-src-idx aus dem selektierten Ergebnis-Item lesen und Signal senden."""
