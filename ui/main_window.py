@@ -1,6 +1,8 @@
 """Hauptfenster des XML-Viewers – Dual-Pane: XML-Eingabe links, Transform-Ergebnis rechts."""
 
 import os
+import tempfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -19,6 +21,22 @@ _STYLESHEETS_DIR = str(Path(__file__).parent.parent / "stylesheets")
 _SHARED_SETTINGS = QSettings("xmlviewer", "xmlviewer")
 
 
+def _create_annotated_xml(path: str) -> str:
+    """Parst die XML-Datei, fügt data-src-idx auf jedem Element ein und
+    schreibt das Ergebnis in eine temporäre Datei. Gibt den Temp-Pfad zurück.
+
+    Der DFS-Index (enumerate(tree.iter())) stimmt mit dem _src_idx_to_item-Dict
+    in XmlTreeWidget überein – das ist die Brücke zwischen den beiden Panes.
+    """
+    tree = ET.parse(path)
+    for idx, el in enumerate(tree.iter()):
+        el.set("data-src-idx", str(idx))
+    tmp = tempfile.NamedTemporaryFile(mode="wb", suffix=".xml", delete=False)
+    tree.write(tmp, encoding="utf-8", xml_declaration=True)
+    tmp.close()
+    return tmp.name
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -26,6 +44,7 @@ class MainWindow(QMainWindow):
         self.resize(1200, 700)
 
         self._geo_key = f"geometry_{os.getpid()}_{id(self)}"
+        self._annotated_xml_tmp: str | None = None
 
         self._setup_ui()
         self._setup_menu()
@@ -167,8 +186,20 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Geladen: {path}")
         self._xml_label.setText(Path(path).name)
         self._xml_label.setStyleSheet("")
+
+        # Linke Pane: Original-XML anzeigen + _src_idx_to_item aufbauen
         self._xml_tree.load_xml(path)
-        self._transform_pane.set_xml_path(path)
+
+        # Alte annotierte Temp-Datei aufräumen
+        if self._annotated_xml_tmp:
+            try:
+                os.unlink(self._annotated_xml_tmp)
+            except OSError:
+                pass
+
+        # Python injiziert data-src-idx in eine Kopie → XSLT braucht nichts zu tun
+        self._annotated_xml_tmp = _create_annotated_xml(path)
+        self._transform_pane.set_xml_path(self._annotated_xml_tmp)
 
     def _load_xsl(self, path: str) -> None:
         self._transform_pane.set_xsl_path(path)
@@ -204,4 +235,9 @@ class MainWindow(QMainWindow):
         _SHARED_SETTINGS.setValue("geometry_last", geo)
         _SHARED_SETTINGS.setValue("splitter_dual_last", self._splitter.saveState())
         _SHARED_SETTINGS.remove(self._geo_key)
+        if self._annotated_xml_tmp:
+            try:
+                os.unlink(self._annotated_xml_tmp)
+            except OSError:
+                pass
         super().closeEvent(event)

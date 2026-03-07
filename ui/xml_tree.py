@@ -130,7 +130,9 @@ def _build_tree(parent_item: QTreeWidgetItem, element: ET.Element,
                 elem_to_idx: dict, idx_to_item: dict) -> None:
     for child in element:
         label = _namespace_local(child.tag)
-        attrs = "  ".join(f'{k}="{v}"' for k, v in child.attrib.items())
+        # data-src-idx ist internes Navigations-Attribut → nicht anzeigen
+        attrs = "  ".join(f'{k}="{v}"' for k, v in child.attrib.items()
+                          if k != "data-src-idx")
         text  = (child.text or "").strip()
 
         item = QTreeWidgetItem(parent_item)
@@ -207,7 +209,8 @@ class XmlTreeWidget(QTreeWidget):
 
         root = tree.getroot()
         label = _namespace_local(root.tag)
-        attrs = "  ".join(f'{k}="{v}"' for k, v in root.attrib.items())
+        attrs = "  ".join(f'{k}="{v}"' for k, v in root.attrib.items()
+                          if k != "data-src-idx")
         text  = (root.text or "").strip()
 
         root_item = QTreeWidgetItem(self)

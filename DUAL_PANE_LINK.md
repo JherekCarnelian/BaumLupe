@@ -2,106 +2,103 @@
 
 ## Ziel
 
-Tastaturkürzel in der rechten (Transform-)Pane springt zum
+Tastaturkürzel **F3** in der rechten (Transform-)Pane springt zum
 entsprechenden Knoten in der linken (XML-Eingabe-)Pane.
 
-## Grundidee: Dokument-Reihenfolge-Index (`data-src-idx`)
+## Architektur: Python Pre-Annotation
 
-XSLT und Python traversieren einen XML-Baum beide in derselben
-Reihenfolge (DFS, Pre-Order). Das ermöglicht eine einfache Brücke:
+Python injiziert `data-src-idx` *vor* der XSLT-Transformation in eine
+temporäre Kopie der XML-Datei. Die XSLT bekommt eine bereits annotierte
+XML und kopiert das Attribut einfach durch – **keine XSLT-Änderung nötig**,
+solange das Stylesheet Attribute mit `@*` übernimmt (Standard-Pattern).
 
-### XSLT-Seite
-
-Die Formel
-
-```xpath
-count(preceding::*) + count(ancestor::*)
+```
+Original XML          Annotierte Temp-XML        Transform-Ergebnis
+──────────────        ───────────────────        ──────────────────
+<bestellung           <bestellung                <bestellung
+  id="B001">    →       id="B001"          →       id="B001"
+  <kunde>               data-src-idx="1">          data-src-idx="1">
+    ...                 <kunde                     <kunde
+                          data-src-idx="2">          data-src-idx="2">
+                          ...                        ...
 ```
 
-ergibt für jeden Quellknoten einen eindeutigen, 0-basierten Index –
-identisch mit dem Index, den `ET.ElementTree.iter()` in Python vergibt.
+### Ablauf beim XML-Laden
 
-Diesen Index schreibt die XSLT als Attribut auf Output-Elemente:
+1. `XmlTreeWidget.load_xml(original_path)` → linke Pane aufbauen,
+   `_src_idx_to_item`-Dict befüllen (DFS-Index → QTreeWidgetItem)
+2. `_create_annotated_xml(original_path)` → temporäre XML-Datei mit
+   `data-src-idx` auf allen Elementen
+3. `TransformTab.set_xml_path(annotated_path)` → XSLT läuft auf Kopie
 
-```xml
-<xsl:attribute name="data-src-idx">
-  <xsl:value-of select="count(preceding::*) + count(ancestor::*)"/>
-</xsl:attribute>
+### DFS-Index-Formel
+
+```python
+# Python (identisch für Original und Kopie):
+for idx, el in enumerate(tree.iter()):
+    el.set("data-src-idx", str(idx))
 ```
 
-### Python-Seite (noch zu implementieren)
+`ET.ElementTree.iter()` traversiert in Document Order (DFS, Pre-Order).
 
-Beim Laden der XML-Datei links:
-- `ET.ElementTree.iter()` liefert alle Elemente in DFS-Reihenfolge
-- `enumerate()` ergibt den Index
-- Mapping: `_src_idx_to_item: dict[int, QTreeWidgetItem]`
+### Ablauf beim F3-Tastaturkürzel
 
-Beim Tastaturkürzel (geplant: **F3**) in der rechten Pane:
-1. Ausgewähltes Item im Ergebnis-Tree lesen
-2. `data-src-idx`-Attribut (Spalte „Attribute") auslesen
-3. Im Mapping `_src_idx_to_item` nachschlagen
-4. Linkes Tree-Item anspringen, aufklappen, highlighten
+```
+Benutzer drückt F3 in rechter Pane
+→ TransformTab._navigate_to_source()
+  → liest data-src-idx aus ET.Element des selektierten Items
+  → sendet navigate_to_source(idx) Signal
+→ MainWindow._on_navigate_to_source(idx)
+  → XmlTreeWidget.find_by_src_idx(idx) → QTreeWidgetItem links
+  → Vorfahren aufklappen, scrollToItem(PositionAtTop), setCurrentItem
+```
 
 ## Voraussetzungen für das XSLT
 
-Damit die Verknüpfung funktioniert, muss das XSLT folgendes leisten:
-
-### 1. `data-src-idx` auf Output-Elementen setzen
-
-Jedes Output-Element, das zu einem Quellknoten zurückverlinken soll,
-muss das Attribut `data-src-idx` tragen, berechnet **im Kontext des
-Quellknotens** (nicht des Output-Elements):
+### Kein Änderungsbedarf bei Standard-Pattern
 
 ```xml
-<!-- Innerhalb eines xsl:template das auf einen Quellknoten matcht: -->
-<output-element>
-  <xsl:attribute name="data-src-idx">
-    <xsl:value-of select="count(preceding::*) + count(ancestor::*)"/>
-  </xsl:attribute>
-  <!-- ... weiterer Inhalt ... -->
-</output-element>
+<xsl:template match="element">
+  <xsl:copy>
+    <xsl:apply-templates select="@* | node()"/>  ← @* kopiert data-src-idx
+  </xsl:copy>
+</xsl:template>
+
+<xsl:template match="@* | text()">
+  <xsl:copy/>                                    ← kopiert Attribute 1:1
+</xsl:template>
 ```
 
-### 2. Nur Quellknoten-Kontext verwenden
+### Nur bei selbst generierten Elementen nötig
 
-Die Formel muss **im Kontext des Quellknotens** ausgewertet werden,
-also innerhalb von `<xsl:template match="...">` oder
-`<xsl:for-each select="...">` – nicht innerhalb von generierten
-Wrapper-Elementen ohne Quelläquivalent.
+Wenn ein Template ein *neues* Element erzeugt (kein `xsl:copy`), muss
+`data-src-idx` explizit übernommen werden:
 
-### 3. Generierte Elemente ohne Quelläquivalent
-
-Elemente, die die XSLT rein strukturell erzeugt (z. B. Wrapper `<div>`,
-`<section>`), sollen **kein** `data-src-idx` erhalten. Sie werden vom
-Python-Code dann einfach ignoriert.
-
-### 4. Namespaces
-
-`count(preceding::*)` zählt Elemente unabhängig von Namespaces.
-Das Mapping funktioniert auch bei Namespace-präfixierten Quell-XMLs
-korrekt, solange Python und XSLT denselben DOM traversieren.
-
-## Warum nicht XPath als String?
-
-Alternativ könnte man den XPath-Ausdruck des Quellknotens als String
-einbetten (z. B. `/root/orders[1]/order[2]`). Das ist lesbarer, aber:
-- XPath-Generierung in XSLT ist aufwändiger (Named Template nötig)
-- Python müsste XPath auswerten (ET unterstützt nur eine Teilmenge)
-- Der Index-Ansatz ist simpler und robuster
-
-## Geplantes Tastaturkürzel
-
-**F3** – in dieser Anwendung noch nicht belegt, semantisch passend
-(„zur Quelle springen").
-
----
-
-## Beispiel-Workflow
-
+```xml
+<xsl:template match="position">
+  <item>
+    <!-- Quell-Attribut manuell übertragen: -->
+    <xsl:attribute name="data-src-idx" select="@data-src-idx"/>
+    <xsl:value-of select="artikel"/>
+  </item>
+</xsl:template>
 ```
-Benutzer wählt Element im rechten Pane aus
-→ drückt F3
-→ Python liest data-src-idx="7" vom Item
-→ sucht _src_idx_to_item[7] → QTreeWidgetItem im linken Pane
-→ scrollTo(item), setCurrentItem(item), item aufklappen
-```
+
+### Elemente ohne Rücklink
+
+Rein strukturell generierte Wrapper-Elemente (z. B. `<root>`, `<liste>`)
+erhalten kein `data-src-idx` → F3 tut für diese Items nichts.
+Das ist kein Fehler, sondern erwartetes Verhalten.
+
+## Dateien
+
+| Datei | Zweck |
+|---|---|
+| `stylesheets/src-link-template.xsl` | Beispiel-Template mit explizitem Rücklink |
+| `stylesheets/adressen_linked.xsl` | Ältere Variante (manueller XSLT-Ansatz, veraltet) |
+| `stylesheets/nur_adressen.xsl` | Funktioniert **unverändert** dank Pre-Annotation |
+
+## Tastaturkürzel
+
+**F3** – aktiviert wenn die rechte (Transform-)Pane oder eines ihrer
+Kind-Widgets den Fokus hat (`WidgetWithChildrenShortcut`).
