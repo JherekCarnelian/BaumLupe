@@ -8,7 +8,8 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QMainWindow, QSplitter, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFileDialog, QStatusBar, QDialog,
-    QAbstractItemView,
+    QAbstractItemView, QDialogButtonBox, QTableWidget, QTableWidgetItem,
+    QHeaderView,
 )
 from PySide6.QtCore import Qt, QSettings
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
@@ -129,6 +130,76 @@ class MainWindow(QMainWindow):
         collapse_action = QAction("Alle &einklappen", self)
         collapse_action.triggered.connect(self._collapse_all)
         view_menu.addAction(collapse_action)
+
+        # Hilfe ganz rechts – Windows-Konvention
+        help_menu = menubar.addMenu("&Hilfe")
+        shortcuts_action = QAction("&Tastaturkürzel…", self)
+        shortcuts_action.setShortcut(QKeySequence(Qt.Key.Key_F1))
+        shortcuts_action.triggered.connect(self._show_shortcuts)
+        help_menu.addAction(shortcuts_action)
+
+    # ------------------------------------------------------------------
+    # Hilfe
+    # ------------------------------------------------------------------
+
+    def _show_shortcuts(self) -> None:
+        # (Abschnittsheader, None) kennzeichnet eine Gruppenüberschrift
+        rows = [
+            ("Allgemein",                   None),
+            ("Datei öffnen",                "Ctrl+O"),
+            ("Beenden",                     "Ctrl+Q"),
+            ("Hilfe",                       "F1"),
+            ("Navigation",                  None),
+            ("Pane-Fokus wechseln",         "Tab  ·  Ctrl+Tab  ·  F6"),
+            ("Knoten auf-/zuklappen",       "Leertaste"),
+            ("Alle ausklappen / einklappen","Ansicht-Menü"),
+            ("Dual-Pane-Verknüpfung",       None),
+            ("Zum Quellknoten springen",    "F3  ·  Ctrl+Return  ·  Ctrl+Space"),
+            ("Kontextmenü (rechte Pane)",   "Rechtsklick → Ausklappen · Einklappen"),
+            ("",                            "                  · Links anspringen"),
+        ]
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Tastaturkürzel")
+        dlg.setMinimumWidth(480)
+
+        table = QTableWidget(len(rows), 2, dlg)
+        table.setHorizontalHeaderLabels(["Aktion", "Kürzel"])
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        table.setShowGrid(False)
+
+        from PySide6.QtGui import QFont
+        header_font = QFont()
+        header_font.setBold(True)
+
+        for r, (action, key) in enumerate(rows):
+            is_header = key is None
+            item_action = QTableWidgetItem(action)
+            item_key    = QTableWidgetItem("" if is_header else key)
+            if is_header:
+                item_action.setFont(header_font)
+                # Hintergrundfarbe für Abschnittsheader
+                from PySide6.QtGui import QColor
+                bg = QColor(220, 230, 245)
+                item_action.setBackground(bg)
+                item_key.setBackground(bg)
+            table.setItem(r, 0, item_action)
+            table.setItem(r, 1, item_key)
+
+        table.resizeRowsToContents()
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(dlg.accept)
+
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(table)
+        layout.addWidget(buttons)
+
+        dlg.exec()
 
     # ------------------------------------------------------------------
     # Ansicht
