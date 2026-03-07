@@ -86,9 +86,14 @@ class MainWindow(QMainWindow):
 
         self._transform_pane.navigate_to_source.connect(self._on_navigate_to_source)
 
-        # F6: Fokus zwischen linker und rechter Pane wechseln
-        sc_focus = QShortcut(QKeySequence(Qt.Key.Key_F6), self)
-        sc_focus.activated.connect(self._toggle_pane_focus)
+        # Tab-Order: direkt zwischen den beiden Bäumen (überspringt Toolbar)
+        self.setTabOrder(self._xml_tree, self._transform_pane.result_tree)
+        self.setTabOrder(self._transform_pane.result_tree, self._xml_tree)
+
+        # F6 / Ctrl+Tab / Ctrl+Shift+Tab: Fokus zwischen linker und rechter Pane
+        for key in ("F6", "Ctrl+Tab", "Ctrl+Shift+Tab"):
+            sc = QShortcut(QKeySequence(key), self)
+            sc.activated.connect(self._toggle_pane_focus)
 
         self.setCentralWidget(self._splitter)
         self.setStatusBar(QStatusBar())
