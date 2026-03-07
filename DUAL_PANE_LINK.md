@@ -7,7 +7,7 @@ entsprechenden Knoten in der linken (XML-Eingabe-)Pane.
 
 ## Architektur: Python Pre-Annotation
 
-Python injiziert `data-src-idx` *vor* der XSLT-Transformation in eine
+Python injiziert `xmlview-src-idx` *vor* der XSLT-Transformation in eine
 temporäre Kopie der XML-Datei. Die XSLT bekommt eine bereits annotierte
 XML und kopiert das Attribut einfach durch – **keine XSLT-Änderung nötig**,
 solange das Stylesheet Attribute mit `@*` übernimmt (Standard-Pattern).
@@ -17,9 +17,9 @@ Original XML          Annotierte Temp-XML        Transform-Ergebnis
 ──────────────        ───────────────────        ──────────────────
 <bestellung           <bestellung                <bestellung
   id="B001">    →       id="B001"          →       id="B001"
-  <kunde>               data-src-idx="1">          data-src-idx="1">
+  <kunde>               xmlview-src-idx="1">          xmlview-src-idx="1">
     ...                 <kunde                     <kunde
-                          data-src-idx="2">          data-src-idx="2">
+                          xmlview-src-idx="2">          xmlview-src-idx="2">
                           ...                        ...
 ```
 
@@ -28,7 +28,7 @@ Original XML          Annotierte Temp-XML        Transform-Ergebnis
 1. `XmlTreeWidget.load_xml(original_path)` → linke Pane aufbauen,
    `_src_idx_to_item`-Dict befüllen (DFS-Index → QTreeWidgetItem)
 2. `_create_annotated_xml(original_path)` → temporäre XML-Datei mit
-   `data-src-idx` auf allen Elementen
+   `xmlview-src-idx` auf allen Elementen
 3. `TransformTab.set_xml_path(annotated_path)` → XSLT läuft auf Kopie
 
 ### DFS-Index-Formel
@@ -36,7 +36,7 @@ Original XML          Annotierte Temp-XML        Transform-Ergebnis
 ```python
 # Python (identisch für Original und Kopie):
 for idx, el in enumerate(tree.iter()):
-    el.set("data-src-idx", str(idx))
+    el.set("xmlview-src-idx", str(idx))
 ```
 
 `ET.ElementTree.iter()` traversiert in Document Order (DFS, Pre-Order).
@@ -46,7 +46,7 @@ for idx, el in enumerate(tree.iter()):
 ```
 Benutzer drückt F3 in rechter Pane
 → TransformTab._navigate_to_source()
-  → liest data-src-idx aus ET.Element des selektierten Items
+  → liest xmlview-src-idx aus ET.Element des selektierten Items
   → sendet navigate_to_source(idx) Signal
 → MainWindow._on_navigate_to_source(idx)
   → XmlTreeWidget.find_by_src_idx(idx) → QTreeWidgetItem links
@@ -60,7 +60,7 @@ Benutzer drückt F3 in rechter Pane
 ```xml
 <xsl:template match="element">
   <xsl:copy>
-    <xsl:apply-templates select="@* | node()"/>  ← @* kopiert data-src-idx
+    <xsl:apply-templates select="@* | node()"/>  ← @* kopiert xmlview-src-idx
   </xsl:copy>
 </xsl:template>
 
@@ -72,13 +72,13 @@ Benutzer drückt F3 in rechter Pane
 ### Nur bei selbst generierten Elementen nötig
 
 Wenn ein Template ein *neues* Element erzeugt (kein `xsl:copy`), muss
-`data-src-idx` explizit übernommen werden:
+`xmlview-src-idx` explizit übernommen werden:
 
 ```xml
 <xsl:template match="position">
   <item>
     <!-- Quell-Attribut manuell übertragen: -->
-    <xsl:attribute name="data-src-idx" select="@data-src-idx"/>
+    <xsl:attribute name="xmlview-src-idx" select="@xmlview-src-idx"/>
     <xsl:value-of select="artikel"/>
   </item>
 </xsl:template>
@@ -87,7 +87,7 @@ Wenn ein Template ein *neues* Element erzeugt (kein `xsl:copy`), muss
 ### Elemente ohne Rücklink
 
 Rein strukturell generierte Wrapper-Elemente (z. B. `<root>`, `<liste>`)
-erhalten kein `data-src-idx` → F3 tut für diese Items nichts.
+erhalten kein `xmlview-src-idx` → F3 tut für diese Items nichts.
 Das ist kein Fehler, sondern erwartetes Verhalten.
 
 ## Dateien

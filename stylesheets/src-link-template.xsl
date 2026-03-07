@@ -5,7 +5,7 @@
   Vorlage für XSLT-Stylesheets, die die Dual-Pane-Navigation unterstützen.
 
   ANFORDERUNG: Jedes Output-Element, das zu einem Quellknoten zurückverlinken
-  soll, muss das Attribut data-src-idx tragen.
+  soll, muss das Attribut xmlview-src-idx tragen.
 
   Formel (im Kontext des Quellknotens):
     count(preceding::*) + count(ancestor::*)
@@ -26,14 +26,14 @@
 
   <!-- ============================================================
        MUSTER 1: Identity-Transform
-       Alle Quellknoten werden 1:1 kopiert und erhalten data-src-idx.
+       Alle Quellknoten werden 1:1 kopiert und erhalten xmlview-src-idx.
        Gut als Ausgangspunkt zum Weiterentwickeln.
        ============================================================ -->
 
   <!--
   <xsl:template match="*">
     <xsl:copy>
-      <xsl:attribute name="data-src-idx">
+      <xsl:attribute name="xmlview-src-idx">
         <xsl:value-of select="count(preceding::*) + count(ancestor::*)"/>
       </xsl:attribute>
       <xsl:apply-templates select="@* | node()"/>
@@ -53,7 +53,7 @@
 
   <xsl:template match="/">
     <result>
-      <!-- Generierter Wrapper – KEIN data-src-idx, kein Quell-Äquivalent -->
+      <!-- Generierter Wrapper – KEIN xmlview-src-idx, kein Quell-Äquivalent -->
       <xsl:apply-templates select="*"/>
     </result>
   </xsl:template>
@@ -61,7 +61,7 @@
   <!-- Beispiel: Wurzelelement mit Link -->
   <xsl:template match="/*">
     <xsl:element name="{local-name()}">
-      <xsl:attribute name="data-src-idx">
+      <xsl:attribute name="xmlview-src-idx">
         <xsl:value-of select="count(preceding::*) + count(ancestor::*)"/>
       </xsl:attribute>
       <xsl:apply-templates/>
@@ -71,8 +71,8 @@
   <!-- Beispiel: Alle Kind-Elemente mit Link -->
   <xsl:template match="*">
     <xsl:element name="{local-name()}">
-      <!-- data-src-idx: Brücke zum Quellknoten im linken XML-Pane -->
-      <xsl:attribute name="data-src-idx">
+      <!-- xmlview-src-idx: Brücke zum Quellknoten im linken XML-Pane -->
+      <xsl:attribute name="xmlview-src-idx">
         <xsl:value-of select="count(preceding::*) + count(ancestor::*)"/>
       </xsl:attribute>
       <!-- Eigene Attribute des Quellknotens übernehmen -->
@@ -90,7 +90,7 @@
 
   <!-- ============================================================
        MUSTER 3: xsl:for-each mit Link
-       Wenn Elemente per for-each iteriert werden, muss data-src-idx
+       Wenn Elemente per for-each iteriert werden, muss xmlview-src-idx
        ebenfalls im Kontext des Quellknotens gesetzt werden.
        ============================================================ -->
 
@@ -99,7 +99,7 @@
     <liste>
       <xsl:for-each select="bestellung">
         <eintrag>
-          <xsl:attribute name="data-src-idx">
+          <xsl:attribute name="xmlview-src-idx">
             <xsl:value-of select="count(preceding::*) + count(ancestor::*)"/>
           </xsl:attribute>
           <xsl:value-of select="kunde"/>

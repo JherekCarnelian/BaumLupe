@@ -235,14 +235,14 @@ class TransformTab(QWidget):
         QMessageBox.warning(self, "Transformationsfehler", message)
 
     def _navigate_to_source(self) -> None:
-        """F3: data-src-idx aus dem selektierten Ergebnis-Item lesen und Signal senden."""
+        """F3: xmlview-src-idx aus dem selektierten Ergebnis-Item lesen und Signal senden."""
         item = self._tree.currentItem()
         if item is None:
             return
         element = item.data(0, Qt.ItemDataRole.UserRole)  # ET.Element aus UserRole
         if element is None:
             return
-        idx_str = element.attrib.get("data-src-idx")
+        idx_str = element.attrib.get("xmlview-src-idx")
         if idx_str is None:
             return
         try:

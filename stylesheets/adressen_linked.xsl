@@ -2,7 +2,7 @@
 <!--
   adressen_linked.xsl
   ===================
-  Wie nur_adressen.xsl, aber mit data-src-idx auf jedem Output-Element.
+  Wie nur_adressen.xsl, aber mit xmlview-src-idx auf jedem Output-Element.
   Das Attribut verknüpft jeden Ergebnis-Knoten mit seinem Quellknoten
   in der linken XML-Pane (Dual-Pane-Navigation via F3).
 
@@ -18,7 +18,7 @@
   <!-- Default: alles ignorieren -->
   <xsl:mode on-no-match="deep-skip"/>
 
-  <!-- Für alle gematchten Elemente: xsl:copy + data-src-idx hinzufügen -->
+  <!-- Für alle gematchten Elemente: xsl:copy + xmlview-src-idx hinzufügen -->
   <xsl:template match="bestellungen
                       | bestellung
                       | kunde
@@ -27,7 +27,7 @@
                       | adresse/*">
     <xsl:copy>
       <!-- Brücke zum Quellknoten: DFS-Index des aktuellen Quellknotens -->
-      <xsl:attribute name="data-src-idx">
+      <xsl:attribute name="xmlview-src-idx">
         <xsl:value-of select="count(preceding::*) + count(ancestor::*)"/>
       </xsl:attribute>
       <xsl:apply-templates select="@* | node()"/>

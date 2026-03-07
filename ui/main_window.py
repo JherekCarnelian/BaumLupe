@@ -22,7 +22,7 @@ _SHARED_SETTINGS = QSettings("xmlviewer", "xmlviewer")
 
 
 def _create_annotated_xml(path: str) -> str:
-    """Parst die XML-Datei, fügt data-src-idx auf jedem Element ein und
+    """Parst die XML-Datei, fügt xmlview-src-idx auf jedem Element ein und
     schreibt das Ergebnis in eine temporäre Datei. Gibt den Temp-Pfad zurück.
 
     Der DFS-Index (enumerate(tree.iter())) stimmt mit dem _src_idx_to_item-Dict
@@ -30,7 +30,7 @@ def _create_annotated_xml(path: str) -> str:
     """
     tree = ET.parse(path)
     for idx, el in enumerate(tree.iter()):
-        el.set("data-src-idx", str(idx))
+        el.set("xmlview-src-idx", str(idx))
     tmp = tempfile.NamedTemporaryFile(mode="wb", suffix=".xml", delete=False)
     tree.write(tmp, encoding="utf-8", xml_declaration=True)
     tmp.close()
@@ -197,7 +197,7 @@ class MainWindow(QMainWindow):
             except OSError:
                 pass
 
-        # Python injiziert data-src-idx in eine Kopie → XSLT braucht nichts zu tun
+        # Python injiziert xmlview-src-idx in eine Kopie → XSLT braucht nichts zu tun
         self._annotated_xml_tmp = _create_annotated_xml(path)
         self._transform_pane.set_xml_path(self._annotated_xml_tmp)
 
