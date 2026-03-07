@@ -1,13 +1,13 @@
-"""Hauptfenster des XML-Viewers."""
+"""Hauptfenster des XML-Viewers – Dual-Pane: XML-Eingabe links, Transform-Ergebnis rechts."""
 
 import os
 from pathlib import Path
 
 from PySide6.QtWidgets import (
-    QMainWindow, QTabWidget, QWidget, QVBoxLayout,
-    QFileDialog, QStatusBar, QDialog,
+    QMainWindow, QSplitter, QWidget, QVBoxLayout, QHBoxLayout,
+    QPushButton, QLabel, QFileDialog, QStatusBar, QDialog,
 )
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import Qt, QSettings
 from PySide6.QtGui import QAction, QKeySequence
 
 from ui.xml_tree import XmlTreeWidget, load_style_config, save_style_config
@@ -15,7 +15,6 @@ from ui.transform_tab import TransformTab
 
 _STYLESHEETS_DIR = str(Path(__file__).parent.parent / "stylesheets")
 
-# Gemeinsame Settings (last_dir) – zwischen Instanzen geteilt, kein Problem
 _SHARED_SETTINGS = QSettings("xmlviewer", "xmlviewer")
 
 
@@ -23,10 +22,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("XML Viewer")
-        self.resize(1100, 700)
+        self.resize(1200, 700)
 
-        # Geometrie-Key ist pro Prozess eindeutig → mehrere Fenster überschreiben
-        # sich nicht gegenseitig beim Schließen
         self._geo_key = f"geometry_{os.getpid()}_{id(self)}"
 
         self._setup_ui()
@@ -38,20 +35,36 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _setup_ui(self) -> None:
-        self._tabs = QTabWidget()
-        self._tabs.setTabPosition(QTabWidget.TabPosition.North)
+        self._splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        tree_container = QWidget()
-        tree_layout = QVBoxLayout(tree_container)
-        tree_layout.setContentsMargins(0, 0, 0, 0)
+        # --- Linke Seite: XML-Eingabe ---
+        left_pane = QWidget()
+        left_layout = QVBoxLayout(left_pane)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(0)
+
+        left_header = QWidget()
+        left_header_layout = QHBoxLayout(left_header)
+        left_header_layout.setContentsMargins(6, 4, 6, 4)
+        self._xml_label = QLabel("(keine Datei geladen)")
+        self._xml_label.setStyleSheet("color: gray;")
+        left_header_layout.addWidget(self._xml_label, stretch=1)
+        open_btn = QPushButton("XML öffnen…")
+        open_btn.clicked.connect(self._open_file)
+        left_header_layout.addWidget(open_btn)
+        left_layout.addWidget(left_header)
+
         self._xml_tree = XmlTreeWidget()
-        tree_layout.addWidget(self._xml_tree)
-        self._tabs.addTab(tree_container, "XML-Baum")
+        left_layout.addWidget(self._xml_tree)
 
-        self._transform_tab = TransformTab(stylesheets_dir=_STYLESHEETS_DIR)
-        self._tabs.addTab(self._transform_tab, "Transform")
+        # --- Rechte Seite: Transform-Ergebnis ---
+        self._transform_pane = TransformTab(stylesheets_dir=_STYLESHEETS_DIR)
 
-        self.setCentralWidget(self._tabs)
+        self._splitter.addWidget(left_pane)
+        self._splitter.addWidget(self._transform_pane)
+        self._splitter.setSizes([600, 600])
+
+        self.setCentralWidget(self._splitter)
         self.setStatusBar(QStatusBar())
 
     def _setup_menu(self) -> None:
@@ -79,22 +92,42 @@ class MainWindow(QMainWindow):
         view_menu = menubar.addMenu("&Ansicht")
 
         expand_action = QAction("Alle &ausklappen", self)
-        expand_action.triggered.connect(lambda: self._active_tree().expandAll())
+        expand_action.triggered.connect(self._expand_all)
         view_menu.addAction(expand_action)
 
         collapse_action = QAction("Alle &einklappen", self)
-        collapse_action.triggered.connect(lambda: self._active_tree().collapseAll())
+        collapse_action.triggered.connect(self._collapse_all)
         view_menu.addAction(collapse_action)
 
     # ------------------------------------------------------------------
-    # Laden
+    # Ansicht
     # ------------------------------------------------------------------
 
-    def _active_tree(self):
-        """Gibt den Tree des aktuell sichtbaren Tabs zurück."""
-        if self._tabs.currentWidget() is self._transform_tab:
-            return self._transform_tab.result_tree
-        return self._xml_tree
+    def _focused_tree(self):
+        """Gibt den Tree zurück, der aktuell den Fokus hat."""
+        from PySide6.QtWidgets import QApplication
+        focus = QApplication.focusWidget()
+        if focus is not None:
+            if self._xml_tree.isAncestorOf(focus) or focus is self._xml_tree:
+                return self._xml_tree
+            result_tree = self._transform_pane.result_tree
+            if result_tree.isAncestorOf(focus) or focus is result_tree:
+                return result_tree
+        return None
+
+    def _expand_all(self) -> None:
+        tree = self._focused_tree()
+        if tree:
+            tree.expandAll()
+
+    def _collapse_all(self) -> None:
+        tree = self._focused_tree()
+        if tree:
+            tree.collapseAll()
+
+    # ------------------------------------------------------------------
+    # Einstellungen
+    # ------------------------------------------------------------------
 
     def _open_style_settings(self) -> None:
         from ui.settings_dialog import SettingsDialog
@@ -102,14 +135,18 @@ class MainWindow(QMainWindow):
 
         def preview(config: dict) -> None:
             self._xml_tree.apply_style_config(config)
-            self._transform_tab.apply_style_config(config)
+            self._transform_pane.apply_style_config(config)
 
         dlg = SettingsDialog(current_config=original, on_preview=preview, parent=self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             save_style_config(dlg.get_config())
             preview(dlg.get_config())
         else:
-            preview(original)  # Änderungen der Live-Vorschau zurückrollen
+            preview(original)
+
+    # ------------------------------------------------------------------
+    # Laden
+    # ------------------------------------------------------------------
 
     def _open_file(self) -> None:
         last_dir = _SHARED_SETTINGS.value("last_dir", str(Path.home()))
@@ -125,31 +162,30 @@ class MainWindow(QMainWindow):
     def _load_xml(self, path: str) -> None:
         self.setWindowTitle(f"XML Viewer – {Path(path).name}")
         self.statusBar().showMessage(f"Geladen: {path}")
+        self._xml_label.setText(Path(path).name)
+        self._xml_label.setStyleSheet("")
         self._xml_tree.load_xml(path)
-        self._transform_tab.set_xml_path(path)
-        self._tabs.setCurrentIndex(0)
+        self._transform_pane.set_xml_path(path)
 
     def _load_xsl(self, path: str) -> None:
-        """XSL vorauswählen und direkt zum Transform-Tab wechseln."""
-        self._transform_tab.set_xsl_path(path)
-        self._tabs.setCurrentIndex(1)
+        self._transform_pane.set_xsl_path(path)
 
     # ------------------------------------------------------------------
-    # Geometrie – pro Instanz isoliert
+    # Geometrie
     # ------------------------------------------------------------------
 
     def _restore_geometry(self) -> None:
-        # Fallback: letzte gespeicherte Geometrie irgendeiner Instanz
         geo = _SHARED_SETTINGS.value("geometry_last")
         if geo:
             self.restoreGeometry(geo)
+        splitter_state = _SHARED_SETTINGS.value("splitter_dual_last")
+        if splitter_state:
+            self._splitter.restoreState(splitter_state)
 
     def closeEvent(self, event) -> None:
         geo = self.saveGeometry()
-        # Unter instanz-eigenem Key speichern (kein Konflikt)
         _SHARED_SETTINGS.setValue(self._geo_key, geo)
-        # Zusätzlich als "letzter Stand" für neue Fenster
         _SHARED_SETTINGS.setValue("geometry_last", geo)
-        # Eigenen Key aufräumen
+        _SHARED_SETTINGS.setValue("splitter_dual_last", self._splitter.saveState())
         _SHARED_SETTINGS.remove(self._geo_key)
         super().closeEvent(event)
