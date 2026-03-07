@@ -1,4 +1,9 @@
-"""Hauptfenster des XML-Viewers – Dual-Pane: XML-Eingabe links, Transform-Ergebnis rechts."""
+"""Hauptfenster des XML-Viewers – Dual-Pane: XML-Eingabe links, mehrere Transform-Panes rechts.
+
+Die rechte Seite enthält einen vertikalen QSplitter, der zur Laufzeit um weitere
+TransformTab-Panes erweitert werden kann ("+"-Button). Jede Pane hat einen "✕"-Button
+zum Schließen (mind. eine Pane bleibt immer bestehen).
+"""
 
 import os
 import tempfile
@@ -9,9 +14,9 @@ from PySide6.QtWidgets import (
     QMainWindow, QSplitter, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFileDialog, QStatusBar, QDialog,
     QAbstractItemView, QDialogButtonBox, QTableWidget, QTableWidgetItem,
-    QHeaderView,
+    QHeaderView, QApplication, QMessageBox,
 )
-from PySide6.QtCore import Qt, QSettings
+from PySide6.QtCore import Qt, QSettings, Signal
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 
 from ui.xml_tree import XmlTreeWidget, load_style_config, save_style_config
@@ -25,9 +30,6 @@ _SHARED_SETTINGS = QSettings("xmlviewer", "xmlviewer")
 def _create_annotated_xml(path: str) -> str:
     """Parst die XML-Datei, fügt xmlview-src-idx auf jedem Element ein und
     schreibt das Ergebnis in eine temporäre Datei. Gibt den Temp-Pfad zurück.
-
-    Der DFS-Index (enumerate(tree.iter())) stimmt mit dem _src_idx_to_item-Dict
-    in XmlTreeWidget überein – das ist die Brücke zwischen den beiden Panes.
     """
     tree = ET.parse(path)
     for idx, el in enumerate(tree.iter()):
@@ -38,14 +40,50 @@ def _create_annotated_xml(path: str) -> str:
     return tmp.name
 
 
+class _TransformPaneWrapper(QWidget):
+    """TransformTab + Schließen-Button in einem dünnen Header-Strip."""
+
+    remove_requested = Signal(object)  # sendet self
+
+    def __init__(self, stylesheets_dir: str, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Dünner Header-Strip mit Close-Button ganz rechts
+        strip = QWidget()
+        strip.setFixedHeight(28)
+        strip_layout = QHBoxLayout(strip)
+        strip_layout.setContentsMargins(6, 3, 4, 3)
+        strip_layout.addStretch()
+        self._close_btn = QPushButton("✕")
+        self._close_btn.setFixedSize(22, 22)
+        self._close_btn.setToolTip("Pane schließen")
+        self._close_btn.clicked.connect(lambda: self.remove_requested.emit(self))
+        strip_layout.addWidget(self._close_btn)
+        layout.addWidget(strip)
+
+        self.transform_tab = TransformTab(stylesheets_dir=stylesheets_dir)
+        layout.addWidget(self.transform_tab)
+
+    def set_close_enabled(self, enabled: bool) -> None:
+        self._close_btn.setEnabled(enabled)
+
+    @property
+    def result_tree(self):
+        return self.transform_tab.result_tree
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("XML Viewer")
-        self.resize(1200, 700)
+        self.resize(1400, 700)
 
         self._geo_key = f"geometry_{os.getpid()}_{id(self)}"
         self._annotated_xml_tmp: str | None = None
+        self._pane_wrappers: list[_TransformPaneWrapper] = []
 
         self._setup_ui()
         self._setup_menu()
@@ -78,18 +116,32 @@ class MainWindow(QMainWindow):
         self._xml_tree = XmlTreeWidget()
         left_layout.addWidget(self._xml_tree)
 
-        # --- Rechte Seite: Transform-Ergebnis ---
-        self._transform_pane = TransformTab(stylesheets_dir=_STYLESHEETS_DIR)
+        # --- Rechte Seite: Container mit "+ Pane"-Button + vertikaler Splitter ---
+        right_container = QWidget()
+        right_layout = QVBoxLayout(right_container)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+
+        right_header = QWidget()
+        right_header.setFixedHeight(34)
+        right_header_layout = QHBoxLayout(right_header)
+        right_header_layout.setContentsMargins(6, 4, 6, 4)
+        right_header_layout.addStretch()
+        add_btn = QPushButton("＋  Stylesheet-Pane")
+        add_btn.setToolTip("Weitere Transform-Pane hinzufügen")
+        add_btn.clicked.connect(self._add_transform_pane)
+        right_header_layout.addWidget(add_btn)
+        right_layout.addWidget(right_header)
+
+        self._right_splitter = QSplitter(Qt.Orientation.Vertical)
+        right_layout.addWidget(self._right_splitter)
 
         self._splitter.addWidget(left_pane)
-        self._splitter.addWidget(self._transform_pane)
-        self._splitter.setSizes([600, 600])
+        self._splitter.addWidget(right_container)
+        self._splitter.setSizes([500, 900])
 
-        self._transform_pane.navigate_to_source.connect(self._on_navigate_to_source)
-
-        # Tab-Order: direkt zwischen den beiden Bäumen (überspringt Toolbar)
-        self.setTabOrder(self._xml_tree, self._transform_pane.result_tree)
-        self.setTabOrder(self._transform_pane.result_tree, self._xml_tree)
+        # Erste Pane automatisch anlegen
+        self._add_transform_pane()
 
         # F6 / Ctrl+Tab / Ctrl+Shift+Tab: Fokus zwischen linker und rechter Pane
         for key in ("F6", "Ctrl+Tab", "Ctrl+Shift+Tab"):
@@ -145,11 +197,50 @@ class MainWindow(QMainWindow):
         help_menu.addAction(about_action)
 
     # ------------------------------------------------------------------
+    # Pane-Verwaltung
+    # ------------------------------------------------------------------
+
+    def _add_transform_pane(self) -> None:
+        wrapper = _TransformPaneWrapper(stylesheets_dir=_STYLESHEETS_DIR)
+        wrapper.remove_requested.connect(self._remove_transform_pane)
+        wrapper.transform_tab.navigate_to_source.connect(self._on_navigate_to_source)
+        self._right_splitter.addWidget(wrapper)
+        self._pane_wrappers.append(wrapper)
+
+        if self._annotated_xml_tmp:
+            wrapper.transform_tab.set_xml_path(self._annotated_xml_tmp)
+
+        self._update_close_buttons()
+        self._update_tab_order()
+
+    def _remove_transform_pane(self, wrapper: _TransformPaneWrapper) -> None:
+        if len(self._pane_wrappers) <= 1:
+            return  # Mindestens eine Pane behalten
+        wrapper.transform_tab.navigate_to_source.disconnect(self._on_navigate_to_source)
+        self._pane_wrappers.remove(wrapper)
+        wrapper.setParent(None)
+        wrapper.deleteLater()
+        self._update_close_buttons()
+        self._update_tab_order()
+
+    def _update_close_buttons(self) -> None:
+        """Close-Button deaktivieren wenn nur noch eine Pane vorhanden."""
+        only_one = len(self._pane_wrappers) == 1
+        for w in self._pane_wrappers:
+            w.set_close_enabled(not only_one)
+
+    def _update_tab_order(self) -> None:
+        """Tab-Reihenfolge: xml_tree → result_tree jeder Pane → zurück."""
+        widgets = [self._xml_tree] + [w.result_tree for w in self._pane_wrappers]
+        for i in range(len(widgets) - 1):
+            self.setTabOrder(widgets[i], widgets[i + 1])
+        self.setTabOrder(widgets[-1], self._xml_tree)
+
+    # ------------------------------------------------------------------
     # Hilfe
     # ------------------------------------------------------------------
 
     def _show_shortcuts(self) -> None:
-        # (Abschnittsheader, None) kennzeichnet eine Gruppenüberschrift
         rows = [
             ("Allgemein",                   None),
             ("Datei öffnen",                "Ctrl+O"),
@@ -163,6 +254,9 @@ class MainWindow(QMainWindow):
             ("Zum Quellknoten springen",    "F3  ·  Ctrl+Return  ·  Ctrl+Space"),
             ("Kontextmenü (rechte Pane)",   "Rechtsklick → Ausklappen · Einklappen"),
             ("",                            "                  · Links anspringen"),
+            ("Pane-Verwaltung",             None),
+            ("Pane hinzufügen",             "＋-Button (rechts oben)"),
+            ("Pane schließen",              "✕-Button (pro Pane)"),
         ]
 
         dlg = QDialog(self)
@@ -178,7 +272,7 @@ class MainWindow(QMainWindow):
         table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         table.setShowGrid(False)
 
-        from PySide6.QtGui import QFont
+        from PySide6.QtGui import QFont, QColor
         header_font = QFont()
         header_font.setBold(True)
 
@@ -188,8 +282,6 @@ class MainWindow(QMainWindow):
             item_key    = QTableWidgetItem("" if is_header else key)
             if is_header:
                 item_action.setFont(header_font)
-                # Hintergrundfarbe für Abschnittsheader
-                from PySide6.QtGui import QColor
                 bg = QColor(220, 230, 245)
                 item_action.setBackground(bg)
                 item_key.setBackground(bg)
@@ -208,13 +300,13 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _show_about(self) -> None:
-        from PySide6.QtWidgets import QMessageBox, QApplication
         version = QApplication.applicationVersion()
         QMessageBox.about(
             self,
             "Über XML Viewer",
             f"<b>XML Viewer</b> {version}<br><br>"
-            "Dual-Pane XML-Viewer mit XSLT 3.0 Transformation.<br><br>"
+            "Dual-Pane XML-Viewer mit XSLT 3.0 Transformation.<br>"
+            "Mehrere Transform-Panes zur Laufzeit erweiterbar.<br><br>"
             "Tech-Stack: PySide6 · saxonche (Saxon/C)"
         )
 
@@ -224,14 +316,15 @@ class MainWindow(QMainWindow):
 
     def _focused_tree(self):
         """Gibt den Tree zurück, der aktuell den Fokus hat."""
-        from PySide6.QtWidgets import QApplication
         focus = QApplication.focusWidget()
-        if focus is not None:
-            if self._xml_tree.isAncestorOf(focus) or focus is self._xml_tree:
-                return self._xml_tree
-            result_tree = self._transform_pane.result_tree
-            if result_tree.isAncestorOf(focus) or focus is result_tree:
-                return result_tree
+        if focus is None:
+            return None
+        if self._xml_tree.isAncestorOf(focus) or focus is self._xml_tree:
+            return self._xml_tree
+        for w in self._pane_wrappers:
+            rt = w.result_tree
+            if rt.isAncestorOf(focus) or focus is rt:
+                return rt
         return None
 
     def _expand_all(self) -> None:
@@ -254,7 +347,8 @@ class MainWindow(QMainWindow):
 
         def preview(config: dict) -> None:
             self._xml_tree.apply_style_config(config)
-            self._transform_pane.apply_style_config(config)
+            for w in self._pane_wrappers:
+                w.transform_tab.apply_style_config(config)
 
         dlg = SettingsDialog(current_config=original, on_preview=preview, parent=self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
@@ -284,38 +378,40 @@ class MainWindow(QMainWindow):
         self._xml_label.setText(Path(path).name)
         self._xml_label.setStyleSheet("")
 
-        # Linke Pane: Original-XML anzeigen + _src_idx_to_item aufbauen
         self._xml_tree.load_xml(path)
 
-        # Alte annotierte Temp-Datei aufräumen
         if self._annotated_xml_tmp:
             try:
                 os.unlink(self._annotated_xml_tmp)
             except OSError:
                 pass
 
-        # Python injiziert xmlview-src-idx in eine Kopie → XSLT braucht nichts zu tun
         self._annotated_xml_tmp = _create_annotated_xml(path)
-        self._transform_pane.set_xml_path(self._annotated_xml_tmp)
+        for w in self._pane_wrappers:
+            w.transform_tab.set_xml_path(self._annotated_xml_tmp)
 
     def _load_xsl(self, path: str) -> None:
-        self._transform_pane.set_xsl_path(path)
+        """XSL-Stylesheet in der ersten Pane vorauswählen (CLI-Argument)."""
+        if self._pane_wrappers:
+            self._pane_wrappers[0].transform_tab.set_xsl_path(path)
 
     def _toggle_pane_focus(self) -> None:
-        """F6: Fokus zwischen linker (XML) und rechter (Transform) Pane wechseln."""
-        from PySide6.QtWidgets import QApplication
+        """F6: Fokus zwischen linker (XML) und rechter (erster Transform-)Pane wechseln."""
         focus = QApplication.focusWidget()
-        if focus is not None and self._transform_pane.isAncestorOf(focus):
+        in_right = (focus is not None and any(
+            w.isAncestorOf(focus) or focus is w
+            for w in self._pane_wrappers
+        ))
+        if in_right:
             self._xml_tree.setFocus()
-        else:
-            self._transform_pane.result_tree.setFocus()
+        elif self._pane_wrappers:
+            self._pane_wrappers[0].result_tree.setFocus()
 
     def _on_navigate_to_source(self, idx: int) -> None:
         """Springt im linken XML-Tree zum Knoten mit dem gegebenen DFS-Index."""
         item = self._xml_tree.find_by_src_idx(idx)
         if item is None:
             return
-        # Alle Vorfahren aufklappen
         parent = item.parent()
         while parent is not None:
             parent.setExpanded(True)
@@ -328,18 +424,22 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _restore_geometry(self) -> None:
-        geo = _SHARED_SETTINGS.value("geometry_last")
+        geo = _SHARED_SETTINGS.value("geometry_last_multi")
         if geo:
             self.restoreGeometry(geo)
-        splitter_state = _SHARED_SETTINGS.value("splitter_dual_last")
+        splitter_state = _SHARED_SETTINGS.value("splitter_multi_h_last")
         if splitter_state:
             self._splitter.restoreState(splitter_state)
+        right_state = _SHARED_SETTINGS.value("splitter_multi_v_last")
+        if right_state:
+            self._right_splitter.restoreState(right_state)
 
     def closeEvent(self, event) -> None:
         geo = self.saveGeometry()
         _SHARED_SETTINGS.setValue(self._geo_key, geo)
-        _SHARED_SETTINGS.setValue("geometry_last", geo)
-        _SHARED_SETTINGS.setValue("splitter_dual_last", self._splitter.saveState())
+        _SHARED_SETTINGS.setValue("geometry_last_multi", geo)
+        _SHARED_SETTINGS.setValue("splitter_multi_h_last", self._splitter.saveState())
+        _SHARED_SETTINGS.setValue("splitter_multi_v_last", self._right_splitter.saveState())
         _SHARED_SETTINGS.remove(self._geo_key)
         if self._annotated_xml_tmp:
             try:
