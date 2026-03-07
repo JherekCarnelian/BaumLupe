@@ -6,6 +6,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QMainWindow, QSplitter, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFileDialog, QStatusBar, QDialog,
+    QAbstractItemView,
 )
 from PySide6.QtCore import Qt, QSettings
 from PySide6.QtGui import QAction, QKeySequence
@@ -182,7 +183,7 @@ class MainWindow(QMainWindow):
         while parent is not None:
             parent.setExpanded(True)
             parent = parent.parent()
-        self._xml_tree.scrollToItem(item)
+        self._xml_tree.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtTop)
         self._xml_tree.setCurrentItem(item)
 
     # ------------------------------------------------------------------
