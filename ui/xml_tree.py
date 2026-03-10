@@ -19,6 +19,8 @@ STYLE_DEFAULTS: dict = {
     "color_element":           "#1565C0",
     "color_value":             "#2E7D32",
     "color_attr":              "#BF360C",
+    "color_selection_bg":      "#0066CC",
+    "color_selection_text":    "#FFFFFF",
     "font_element_bold":       True,
     "font_element_italic":     False,
     "font_element_size_delta": 0,
@@ -166,6 +168,15 @@ class XmlTreeWidget(QTreeWidget):
         self.setColumnWidth(_COL_ELEMENT, int(config["col_width_element"]))
         self.setColumnWidth(_COL_VALUE,   int(config["col_width_value"]))
         self.header().setStretchLastSection(True)
+        self._apply_selection_style(config)
+
+        # Selektierte Zeilen: immer weißen Text erzwingen, plattformunabhängig.
+        # setForeground() bleibt für nicht-selektierte Items wirksam;
+        # das QSS greift nur im Selektionszustand und überschreibt den Custom-Brush.
+        self.setStyleSheet(
+            "QTreeWidget::item:selected { color: white; }"
+            "QTreeWidget::item:selected:!active { color: white; }"
+        )
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Space:
@@ -181,6 +192,15 @@ class XmlTreeWidget(QTreeWidget):
         self.setColumnWidth(_COL_ELEMENT, int(config.get("col_width_element", STYLE_DEFAULTS["col_width_element"])))
         self.setColumnWidth(_COL_VALUE,   int(config.get("col_width_value",   STYLE_DEFAULTS["col_width_value"])))
         self._restyle_items(self.invisibleRootItem())
+        self._apply_selection_style(config)
+
+    def _apply_selection_style(self, config: dict) -> None:
+        bg   = config.get("color_selection_bg",   STYLE_DEFAULTS["color_selection_bg"])
+        text = config.get("color_selection_text", STYLE_DEFAULTS["color_selection_text"])
+        self.setStyleSheet(
+            f"QTreeWidget::item:selected {{ color: {text}; background: {bg}; }}"
+            f"QTreeWidget::item:selected:!active {{ color: {text}; background: {bg}; }}"
+        )
 
     def _restyle_items(self, parent: QTreeWidgetItem) -> None:
         for i in range(parent.childCount()):

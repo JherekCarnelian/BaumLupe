@@ -129,6 +129,25 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(font_group)
 
+        # --- Selektion ---
+        sel_group = QGroupBox("Selektion")
+        sel_layout = QHBoxLayout(sel_group)
+
+        sel_layout.addWidget(QLabel("Hintergrund:"))
+        self._btn_sel_bg = _ColorButton(str(self._config["color_selection_bg"]))
+        self._btn_sel_bg.color_changed.connect(lambda c: self._on_sel_color("color_selection_bg", c))
+        sel_layout.addWidget(self._btn_sel_bg)
+
+        sel_layout.addSpacing(24)
+
+        sel_layout.addWidget(QLabel("Text:"))
+        self._btn_sel_text = _ColorButton(str(self._config["color_selection_text"]))
+        self._btn_sel_text.color_changed.connect(lambda c: self._on_sel_color("color_selection_text", c))
+        sel_layout.addWidget(self._btn_sel_text)
+
+        sel_layout.addStretch()
+        layout.addWidget(sel_group)
+
         # --- Spaltenbreiten ---
         width_group = QGroupBox("Spaltenbreiten (Pixel)")
         width_layout = QHBoxLayout(width_group)
@@ -175,6 +194,10 @@ class SettingsDialog(QDialog):
         self._config[f"color_{prefix}"] = color
         self._on_preview(self._config)
 
+    def _on_sel_color(self, key: str, color: str) -> None:
+        self._config[key] = color
+        self._on_preview(self._config)
+
     def _on_font(self, prefix: str) -> None:
         w = self._widgets[prefix]
         self._config[f"font_{prefix}_bold"]       = w["bold"].isChecked()
@@ -217,6 +240,9 @@ class SettingsDialog(QDialog):
         self._spin_col_value.setValue(int(self._config["col_width_value"]))
         for w in (self._chk_icon, self._spin_col_element, self._spin_col_value):
             w.blockSignals(False)
+
+        self._btn_sel_bg.set_color(str(self._config["color_selection_bg"]))
+        self._btn_sel_text.set_color(str(self._config["color_selection_text"]))
 
         self._on_preview(self._config)
 
