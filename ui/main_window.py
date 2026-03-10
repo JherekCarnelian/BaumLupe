@@ -396,16 +396,16 @@ class MainWindow(QMainWindow):
             self._pane_wrappers[0].transform_tab.set_xsl_path(path)
 
     def _toggle_pane_focus(self) -> None:
-        """F6: Fokus zwischen linker (XML) und rechter (erster Transform-)Pane wechseln."""
+        """Ctrl+Tab / F6: Fokus zyklisch durch alle Panes weiterschalten."""
         focus = QApplication.focusWidget()
-        in_right = (focus is not None and any(
-            w.isAncestorOf(focus) or focus is w
-            for w in self._pane_wrappers
-        ))
-        if in_right:
-            self._xml_tree.setFocus()
-        elif self._pane_wrappers:
-            self._pane_wrappers[0].result_tree.setFocus()
+        trees = [self._xml_tree] + [w.result_tree for w in self._pane_wrappers]
+        current = -1
+        if focus is not None:
+            for i, tree in enumerate(trees):
+                if tree is focus or tree.isAncestorOf(focus):
+                    current = i
+                    break
+        trees[(current + 1) % len(trees)].setFocus()
 
     def _on_navigate_to_source(self, idx: int) -> None:
         """Springt im linken XML-Tree zum Knoten mit dem gegebenen DFS-Index."""
