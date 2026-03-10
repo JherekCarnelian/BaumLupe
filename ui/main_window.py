@@ -200,7 +200,7 @@ class MainWindow(QMainWindow):
     # Pane-Verwaltung
     # ------------------------------------------------------------------
 
-    def _add_transform_pane(self) -> None:
+    def _add_transform_pane(self, xsl_path: str | None = None) -> None:
         wrapper = _TransformPaneWrapper(stylesheets_dir=_STYLESHEETS_DIR)
         wrapper.remove_requested.connect(self._remove_transform_pane)
         wrapper.transform_tab.navigate_to_source.connect(self._on_navigate_to_source)
@@ -209,6 +209,9 @@ class MainWindow(QMainWindow):
 
         if self._annotated_xml_tmp:
             wrapper.transform_tab.set_xml_path(self._annotated_xml_tmp)
+
+        if xsl_path:
+            wrapper.transform_tab.set_xsl_path(xsl_path)
 
         self._update_close_buttons()
         self._update_tab_order()

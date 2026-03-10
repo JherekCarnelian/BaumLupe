@@ -2,7 +2,9 @@
 """Einstiegspunkt für den XML-Viewer.
 
 Aufruf:
-    ./run.sh [datei.xml [stylesheet.xsl]] [--x X] [--y Y]
+    ./run.sh [datei.xml [stylesheet.xsl [stylesheet2.xsl ...]]] [--x X] [--y Y]
+
+Jedes zusätzliche Stylesheet öffnet automatisch eine weitere Transform-Pane.
 
 Optionen:
     --x X   Fenster-Position horizontal (Pixel vom linken Bildschirmrand)
@@ -11,6 +13,7 @@ Optionen:
 Mehrere Instanzen gleichzeitig sind problemlos möglich.
 """
 
+import os
 import sys
 import argparse
 
@@ -23,7 +26,7 @@ from ui.main_window import MainWindow
 def main() -> None:
     parser = argparse.ArgumentParser(description="XML Viewer")
     parser.add_argument("xml", nargs="?", help="XML-Datei")
-    parser.add_argument("xsl", nargs="?", help="XSL-Stylesheet")
+    parser.add_argument("xsl", nargs="*", help="XSL-Stylesheet(s) – jedes öffnet eine eigene Pane")
     parser.add_argument("--x", type=int, dest="win_x", metavar="X",
                         help="Fenster-X-Position (Pixel)")
     parser.add_argument("--y", type=int, dest="win_y", metavar="Y",
@@ -43,14 +46,15 @@ def main() -> None:
         window.move(args.win_x, args.win_y)
 
     if args.xml:
-        import os
         if os.path.isfile(args.xml):
             window._load_xml(args.xml)
 
-    if args.xsl:
-        import os
-        if os.path.isfile(args.xsl):
-            window._load_xsl(args.xsl)
+    for i, xsl in enumerate(args.xsl):
+        if os.path.isfile(xsl):
+            if i == 0:
+                window._load_xsl(xsl)
+            else:
+                window._add_transform_pane(xsl_path=xsl)
 
     sys.exit(app.exec())
 
