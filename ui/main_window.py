@@ -84,6 +84,7 @@ class MainWindow(QMainWindow):
         self._geo_key = f"geometry_{os.getpid()}_{id(self)}"
         self._annotated_xml_tmp: str | None = None
         self._pane_wrappers: list[_TransformPaneWrapper] = []
+        self._columns: list[QSplitter] = []   # je ein QSplitter(Vertikal) pro Spalte
 
         self._setup_ui()
         self._setup_menu()
@@ -127,21 +128,28 @@ class MainWindow(QMainWindow):
         right_header_layout = QHBoxLayout(right_header)
         right_header_layout.setContentsMargins(6, 4, 6, 4)
         right_header_layout.addStretch()
-        add_btn = QPushButton("＋  Stylesheet-Pane")
-        add_btn.setToolTip("Weitere Transform-Pane hinzufügen")
-        add_btn.clicked.connect(self._add_transform_pane)
-        right_header_layout.addWidget(add_btn)
+        btn_add_below = QPushButton("＋  Unten")
+        btn_add_below.setToolTip("Neue Pane unterhalb in gleicher Spalte")
+        btn_add_below.clicked.connect(lambda: self._add_transform_pane(direction='vertical'))
+        right_header_layout.addWidget(btn_add_below)
+
+        btn_add_right = QPushButton("＋  Rechts")
+        btn_add_right.setToolTip("Neue Pane in neuer Spalte rechts")
+        btn_add_right.clicked.connect(lambda: self._add_transform_pane(direction='horizontal'))
+        right_header_layout.addWidget(btn_add_right)
         right_layout.addWidget(right_header)
 
-        self._right_splitter = QSplitter(Qt.Orientation.Vertical)
-        right_layout.addWidget(self._right_splitter)
+        self._col_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._col_splitter.setChildrenCollapsible(False)
+        right_layout.addWidget(self._col_splitter)
 
         self._splitter.addWidget(left_pane)
         self._splitter.addWidget(right_container)
         self._splitter.setSizes([500, 900])
 
-        # Erste Pane automatisch anlegen
-        self._add_transform_pane()
+        # Erste Spalte + erste Pane automatisch anlegen
+        self._add_column()
+        self._add_transform_pane(direction='vertical')
 
         # F6 / Ctrl+Tab: Fokus vorwärts; Ctrl+Shift+Tab: rückwärts
         for key in ("F6", "Ctrl+Tab"):
@@ -202,11 +210,48 @@ class MainWindow(QMainWindow):
     # Pane-Verwaltung
     # ------------------------------------------------------------------
 
-    def _add_transform_pane(self, xsl_path: str | None = None) -> None:
+    def _add_column(self) -> QSplitter:
+        """Neue leere Spalte (vertikaler QSplitter) rechts anfügen."""
+        col = QSplitter(Qt.Orientation.Vertical)
+        self._col_splitter.addWidget(col)
+        self._columns.append(col)
+        # Breite gleichmäßig auf alle Spalten verteilen
+        total = self._col_splitter.width()
+        n = len(self._columns)
+        if total > 0 and n > 1:
+            self._col_splitter.setSizes([total // n] * n)
+        return col
+
+    def _column_of(self, wrapper: _TransformPaneWrapper) -> QSplitter | None:
+        """Gibt die Spalte zurück, in der wrapper liegt."""
+        for col in self._columns:
+            for i in range(col.count()):
+                if col.widget(i) is wrapper:
+                    return col
+        return None
+
+    def _focused_column(self) -> QSplitter:
+        """Spalte der fokussierten Pane, oder letzte Spalte als Fallback."""
+        focus = QApplication.focusWidget()
+        if focus is not None:
+            for w in self._pane_wrappers:
+                if w is focus or w.isAncestorOf(focus):
+                    col = self._column_of(w)
+                    if col:
+                        return col
+        return self._columns[-1]
+
+    def _add_transform_pane(self, xsl_path: str | None = None,
+                            direction: str = 'vertical') -> None:
+        if direction == 'horizontal':
+            col = self._add_column()
+        else:
+            col = self._focused_column()
+
         wrapper = _TransformPaneWrapper(stylesheets_dir=_STYLESHEETS_DIR)
         wrapper.remove_requested.connect(self._remove_transform_pane)
         wrapper.transform_tab.navigate_to_source.connect(self._on_navigate_to_source)
-        self._right_splitter.addWidget(wrapper)
+        col.addWidget(wrapper)
         self._pane_wrappers.append(wrapper)
 
         if self._annotated_xml_tmp:
@@ -221,10 +266,16 @@ class MainWindow(QMainWindow):
     def _remove_transform_pane(self, wrapper: _TransformPaneWrapper) -> None:
         if len(self._pane_wrappers) <= 1:
             return  # Mindestens eine Pane behalten
+        col = self._column_of(wrapper)
         wrapper.transform_tab.navigate_to_source.disconnect(self._on_navigate_to_source)
         self._pane_wrappers.remove(wrapper)
         wrapper.setParent(None)
         wrapper.deleteLater()
+        # Leere Spalte entfernen (aber nie die letzte)
+        if col and col.count() == 0 and len(self._columns) > 1:
+            self._columns.remove(col)
+            col.setParent(None)
+            col.deleteLater()
         self._update_close_buttons()
         self._update_tab_order()
 
@@ -261,7 +312,8 @@ class MainWindow(QMainWindow):
             ("Kontextmenü (rechte Pane)",   "Rechtsklick → Ausklappen · Einklappen"),
             ("",                            "                  · Links anspringen"),
             ("Pane-Verwaltung",             None),
-            ("Pane hinzufügen",             "＋-Button (rechts oben)"),
+            ("Pane unten hinzufügen",       "＋ Unten (rechts oben)"),
+            ("Pane rechts hinzufügen",      "＋ Rechts (rechts oben)"),
             ("Pane schließen",              "✕-Button (pro Pane)"),
         ]
 
@@ -436,16 +488,16 @@ class MainWindow(QMainWindow):
         splitter_state = _SHARED_SETTINGS.value("splitter_multi_h_last")
         if splitter_state:
             self._splitter.restoreState(splitter_state)
-        right_state = _SHARED_SETTINGS.value("splitter_multi_v_last")
-        if right_state:
-            self._right_splitter.restoreState(right_state)
+        col_state = _SHARED_SETTINGS.value("splitter_multi_col_last")
+        if col_state:
+            self._col_splitter.restoreState(col_state)
 
     def closeEvent(self, event) -> None:
         geo = self.saveGeometry()
         _SHARED_SETTINGS.setValue(self._geo_key, geo)
         _SHARED_SETTINGS.setValue("geometry_last_multi", geo)
         _SHARED_SETTINGS.setValue("splitter_multi_h_last", self._splitter.saveState())
-        _SHARED_SETTINGS.setValue("splitter_multi_v_last", self._right_splitter.saveState())
+        _SHARED_SETTINGS.setValue("splitter_multi_col_last", self._col_splitter.saveState())
         _SHARED_SETTINGS.remove(self._geo_key)
         if self._annotated_xml_tmp:
             try:
