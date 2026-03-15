@@ -191,26 +191,53 @@ class XmlTreeWidget(QTreeWidget):
         if item is None:
             return
         self.setCurrentItem(item)
+        element = item.data(_COL_ELEMENT, Qt.ItemDataRole.UserRole)
+        has_value = bool(element is not None and (element.text or "").strip())
+        has_attrs = bool(element is not None and
+                         any(k != "xmlview-src-idx" for k in element.attrib))
         menu = QMenu(self)
-        act_copy = menu.addAction("Kopieren  (Ctrl+C)")
-        act_copy.triggered.connect(self.copy_selected)
+        act_xml = menu.addAction("XML kopieren  (Ctrl+C)")
+        act_xml.triggered.connect(self.copy_selected)
+        act_val = menu.addAction("Wert kopieren")
+        act_val.setEnabled(has_value)
+        act_val.triggered.connect(self.copy_value)
+        act_attr = menu.addAction("Attribute kopieren")
+        act_attr.setEnabled(has_attrs)
+        act_attr.triggered.connect(self.copy_attrs)
         menu.exec(event.globalPos())
+
+    def _current_element(self):
+        item = self.currentItem()
+        if item is None:
+            return None
+        return item.data(_COL_ELEMENT, Qt.ItemDataRole.UserRole)
 
     def copy_selected(self) -> None:
         """Kopiert den selektierten Knoten + Subtree als XML in die Zwischenablage."""
-        item = self.currentItem()
-        if item is None:
-            return
-        element = item.data(_COL_ELEMENT, Qt.ItemDataRole.UserRole)
+        element = self._current_element()
         if element is None:
             return
         el = copy.deepcopy(element)
-        # Interne Navigations-Attribute entfernen
         for node in el.iter():
             node.attrib.pop("xmlview-src-idx", None)
         ET.indent(el, space="  ")
-        xml_str = ET.tostring(el, encoding="unicode")
-        QApplication.clipboard().setText(xml_str)
+        QApplication.clipboard().setText(ET.tostring(el, encoding="unicode"))
+
+    def copy_value(self) -> None:
+        """Kopiert den Textwert des selektierten Elements in die Zwischenablage."""
+        element = self._current_element()
+        if element is None:
+            return
+        QApplication.clipboard().setText((element.text or "").strip())
+
+    def copy_attrs(self) -> None:
+        """Kopiert die Attribute des selektierten Elements als key=\"value\"-Paare."""
+        element = self._current_element()
+        if element is None:
+            return
+        text = "  ".join(f'{k}="{v}"' for k, v in element.attrib.items()
+                         if k != "xmlview-src-idx")
+        QApplication.clipboard().setText(text)
 
     def apply_style_config(self, config: dict) -> None:
         """Übernimmt neue Stil-Einstellungen und stylt alle sichtbaren Items neu."""
