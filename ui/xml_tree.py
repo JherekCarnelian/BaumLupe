@@ -5,7 +5,9 @@ Stil (Farben, Schriften) wird aus QSettings geladen und kann
 zur Laufzeit via apply_style_config() geändert werden.
 """
 
-from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
+import copy
+
+from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem, QApplication, QMenu
 from PySide6.QtCore import Qt, QSettings
 from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QKeyEvent, QPainter, QPixmap
 import xml.etree.ElementTree as ET
@@ -178,7 +180,37 @@ class XmlTreeWidget(QTreeWidget):
             if item and item.childCount() > 0:
                 item.setExpanded(not item.isExpanded())
                 return
+        if (event.key() == Qt.Key.Key_C and
+                event.modifiers() == Qt.KeyboardModifier.ControlModifier):
+            self.copy_selected()
+            return
         super().keyPressEvent(event)
+
+    def contextMenuEvent(self, event) -> None:
+        item = self.itemAt(self.viewport().mapFromGlobal(event.globalPos()))
+        if item is None:
+            return
+        self.setCurrentItem(item)
+        menu = QMenu(self)
+        act_copy = menu.addAction("Kopieren  (Ctrl+C)")
+        act_copy.triggered.connect(self.copy_selected)
+        menu.exec(event.globalPos())
+
+    def copy_selected(self) -> None:
+        """Kopiert den selektierten Knoten + Subtree als XML in die Zwischenablage."""
+        item = self.currentItem()
+        if item is None:
+            return
+        element = item.data(_COL_ELEMENT, Qt.ItemDataRole.UserRole)
+        if element is None:
+            return
+        el = copy.deepcopy(element)
+        # Interne Navigations-Attribute entfernen
+        for node in el.iter():
+            node.attrib.pop("xmlview-src-idx", None)
+        ET.indent(el, space="  ")
+        xml_str = ET.tostring(el, encoding="unicode")
+        QApplication.clipboard().setText(xml_str)
 
     def apply_style_config(self, config: dict) -> None:
         """Übernimmt neue Stil-Einstellungen und stylt alle sichtbaren Items neu."""

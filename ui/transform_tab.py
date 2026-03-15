@@ -266,6 +266,11 @@ class TransformTab(QWidget):
 
         menu.addSeparator()
 
+        act_copy = menu.addAction("Kopieren  (Ctrl+C)")
+        act_copy.triggered.connect(self._tree.copy_selected)
+
+        menu.addSeparator()
+
         act_jump = menu.addAction("Links anspringen  (F3)")
         act_jump.setEnabled(has_src_idx)
         act_jump.triggered.connect(self._navigate_to_source)
