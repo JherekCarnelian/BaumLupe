@@ -170,14 +170,6 @@ class XmlTreeWidget(QTreeWidget):
         self.header().setStretchLastSection(True)
         self._apply_selection_style(config)
 
-        # Selektierte Zeilen: immer weißen Text erzwingen, plattformunabhängig.
-        # setForeground() bleibt für nicht-selektierte Items wirksam;
-        # das QSS greift nur im Selektionszustand und überschreibt den Custom-Brush.
-        self.setStyleSheet(
-            "QTreeWidget::item:selected { color: white; }"
-            "QTreeWidget::item:selected:!active { color: white; }"
-        )
-
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Space:
             item = self.currentItem()
@@ -200,6 +192,7 @@ class XmlTreeWidget(QTreeWidget):
         self.setStyleSheet(
             f"QTreeWidget::item:selected {{ color: {text}; background: {bg}; }}"
             f"QTreeWidget::item:selected:!active {{ color: {text}; background: {bg}; }}"
+            "QTreeWidget::item:hover { background: transparent; }"
         )
 
     def _restyle_items(self, parent: QTreeWidgetItem) -> None:
