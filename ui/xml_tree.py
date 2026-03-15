@@ -180,10 +180,20 @@ class XmlTreeWidget(QTreeWidget):
             if item and item.childCount() > 0:
                 item.setExpanded(not item.isExpanded())
                 return
-        if (event.key() == Qt.Key.Key_C and
-                event.modifiers() == Qt.KeyboardModifier.ControlModifier):
-            self.copy_selected()
-            return
+        mods = event.modifiers()
+        ctrl       = Qt.KeyboardModifier.ControlModifier
+        ctrl_shift = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+        ctrl_alt   = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier
+        if event.key() == Qt.Key.Key_C:
+            if mods == ctrl:
+                self.copy_selected()
+                return
+            if mods == ctrl_shift:
+                self.copy_value()
+                return
+            if mods == ctrl_alt:
+                self.copy_attrs()
+                return
         super().keyPressEvent(event)
 
     def contextMenuEvent(self, event) -> None:
@@ -196,12 +206,12 @@ class XmlTreeWidget(QTreeWidget):
         has_attrs = bool(element is not None and
                          any(k != "xmlview-src-idx" for k in element.attrib))
         menu = QMenu(self)
-        act_xml = menu.addAction("XML kopieren  (Ctrl+C)")
+        act_xml = menu.addAction("XML kopieren        (Ctrl+C)")
         act_xml.triggered.connect(self.copy_selected)
-        act_val = menu.addAction("Wert kopieren")
+        act_val = menu.addAction("Wert kopieren       (Ctrl+Shift+C)")
         act_val.setEnabled(has_value)
         act_val.triggered.connect(self.copy_value)
-        act_attr = menu.addAction("Attribute kopieren")
+        act_attr = menu.addAction("Attribute kopieren  (Ctrl+Alt+C)")
         act_attr.setEnabled(has_attrs)
         act_attr.triggered.connect(self.copy_attrs)
         menu.exec(event.globalPos())

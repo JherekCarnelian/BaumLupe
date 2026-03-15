@@ -270,12 +270,12 @@ class TransformTab(QWidget):
         has_attrs = bool(element is not None and
                          any(k != "xmlview-src-idx" for k in element.attrib))
 
-        act_xml = menu.addAction("XML kopieren  (Ctrl+C)")
+        act_xml = menu.addAction("XML kopieren        (Ctrl+C)")
         act_xml.triggered.connect(self._tree.copy_selected)
-        act_val = menu.addAction("Wert kopieren")
+        act_val = menu.addAction("Wert kopieren       (Ctrl+Shift+C)")
         act_val.setEnabled(has_value)
         act_val.triggered.connect(self._tree.copy_value)
-        act_attr = menu.addAction("Attribute kopieren")
+        act_attr = menu.addAction("Attribute kopieren  (Ctrl+Alt+C)")
         act_attr.setEnabled(has_attrs)
         act_attr.triggered.connect(self._tree.copy_attrs)
 
