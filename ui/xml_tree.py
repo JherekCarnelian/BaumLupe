@@ -21,6 +21,7 @@ STYLE_DEFAULTS: dict = {
     "color_attr":              "#BF360C",
     "color_selection_bg":      "#0066CC",
     "color_selection_text":    "#FFFFFF",
+    "color_active_border":     "#1565C0",
     "font_element_bold":       True,
     "font_element_italic":     False,
     "font_element_size_delta": 0,
@@ -164,6 +165,7 @@ class XmlTreeWidget(QTreeWidget):
         self._src_idx_to_item: dict[int, QTreeWidgetItem] = {}
 
         config = load_style_config()
+        self._style_config = config
         self._style = _TreeStyle(config)
         self.setColumnWidth(_COL_ELEMENT, int(config["col_width_element"]))
         self.setColumnWidth(_COL_VALUE,   int(config["col_width_value"]))
@@ -187,13 +189,28 @@ class XmlTreeWidget(QTreeWidget):
         self._apply_selection_style(config)
 
     def _apply_selection_style(self, config: dict) -> None:
-        bg   = config.get("color_selection_bg",   STYLE_DEFAULTS["color_selection_bg"])
-        text = config.get("color_selection_text", STYLE_DEFAULTS["color_selection_text"])
+        self._style_config = config
+        bg     = config.get("color_selection_bg",   STYLE_DEFAULTS["color_selection_bg"])
+        text   = config.get("color_selection_text", STYLE_DEFAULTS["color_selection_text"])
+        border = config.get("color_active_border",  STYLE_DEFAULTS["color_active_border"])
+        if self.hasFocus():
+            border_css = f"QTreeWidget {{ border: 2px solid {border}; }}"
+        else:
+            border_css = "QTreeWidget { border: 1px solid #3c3c3c; }"
         self.setStyleSheet(
-            f"QTreeWidget::item:selected {{ color: {text}; background: {bg}; }}"
-            f"QTreeWidget::item:selected:!active {{ color: {text}; background: {bg}; }}"
-            "QTreeWidget::item:hover { background: transparent; }"
+            border_css
+            + f"QTreeWidget::item:selected {{ color: {text}; background: {bg}; }}"
+            + f"QTreeWidget::item:selected:!active {{ color: {text}; background: {bg}; }}"
+            + "QTreeWidget::item:hover { background: transparent; }"
         )
+
+    def focusInEvent(self, event) -> None:
+        super().focusInEvent(event)
+        self._apply_selection_style(self._style_config)
+
+    def focusOutEvent(self, event) -> None:
+        super().focusOutEvent(event)
+        self._apply_selection_style(self._style_config)
 
     def _restyle_items(self, parent: QTreeWidgetItem) -> None:
         for i in range(parent.childCount()):

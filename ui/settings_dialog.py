@@ -145,6 +145,13 @@ class SettingsDialog(QDialog):
         self._btn_sel_text.color_changed.connect(lambda c: self._on_sel_color("color_selection_text", c))
         sel_layout.addWidget(self._btn_sel_text)
 
+        sel_layout.addSpacing(24)
+
+        sel_layout.addWidget(QLabel("Aktive Pane:"))
+        self._btn_active_border = _ColorButton(str(self._config["color_active_border"]))
+        self._btn_active_border.color_changed.connect(lambda c: self._on_sel_color("color_active_border", c))
+        sel_layout.addWidget(self._btn_active_border)
+
         sel_layout.addStretch()
         layout.addWidget(sel_group)
 
@@ -243,6 +250,7 @@ class SettingsDialog(QDialog):
 
         self._btn_sel_bg.set_color(str(self._config["color_selection_bg"]))
         self._btn_sel_text.set_color(str(self._config["color_selection_text"]))
+        self._btn_active_border.set_color(str(self._config["color_active_border"]))
 
         self._on_preview(self._config)
 
