@@ -143,10 +143,12 @@ class MainWindow(QMainWindow):
         # Erste Pane automatisch anlegen
         self._add_transform_pane()
 
-        # F6 / Ctrl+Tab / Ctrl+Shift+Tab: Fokus zwischen linker und rechter Pane
-        for key in ("F6", "Ctrl+Tab", "Ctrl+Shift+Tab"):
+        # F6 / Ctrl+Tab: Fokus vorwärts; Ctrl+Shift+Tab: rückwärts
+        for key in ("F6", "Ctrl+Tab"):
             sc = QShortcut(QKeySequence(key), self)
-            sc.activated.connect(self._toggle_pane_focus)
+            sc.activated.connect(lambda: self._toggle_pane_focus(+1))
+        sc_back = QShortcut(QKeySequence("Ctrl+Shift+Tab"), self)
+        sc_back.activated.connect(lambda: self._toggle_pane_focus(-1))
 
         self.setCentralWidget(self._splitter)
         self.setStatusBar(QStatusBar())
@@ -250,7 +252,8 @@ class MainWindow(QMainWindow):
             ("Beenden",                     "Ctrl+Q"),
             ("Hilfe",                       "F1"),
             ("Navigation",                  None),
-            ("Pane-Fokus wechseln",         "Tab  ·  Ctrl+Tab  ·  F6"),
+            ("Pane-Fokus vorwärts",          "Ctrl+Tab  ·  F6"),
+            ("Pane-Fokus rückwärts",         "Ctrl+Shift+Tab"),
             ("Knoten auf-/zuklappen",       "Leertaste"),
             ("Alle ausklappen / einklappen","Ansicht-Menü"),
             ("Dual-Pane-Verknüpfung",       None),
@@ -398,8 +401,8 @@ class MainWindow(QMainWindow):
         if self._pane_wrappers:
             self._pane_wrappers[0].transform_tab.set_xsl_path(path)
 
-    def _toggle_pane_focus(self) -> None:
-        """Ctrl+Tab / F6: Fokus zyklisch durch alle Panes weiterschalten."""
+    def _toggle_pane_focus(self, direction: int = +1) -> None:
+        """Fokus zyklisch durch alle Panes weiterschalten. direction: +1 vorwärts, -1 rückwärts."""
         focus = QApplication.focusWidget()
         trees = [self._xml_tree] + [w.result_tree for w in self._pane_wrappers]
         current = -1
@@ -408,7 +411,7 @@ class MainWindow(QMainWindow):
                 if tree is focus or tree.isAncestorOf(focus):
                     current = i
                     break
-        trees[(current + 1) % len(trees)].setFocus()
+        trees[(current + direction) % len(trees)].setFocus()
 
     def _on_navigate_to_source(self, idx: int) -> None:
         """Springt im linken XML-Tree zum Knoten mit dem gegebenen DFS-Index."""
