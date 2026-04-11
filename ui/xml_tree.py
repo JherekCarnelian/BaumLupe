@@ -7,7 +7,9 @@ zur Laufzeit via apply_style_config() geändert werden.
 
 import copy
 
-from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem, QApplication, QMenu
+from PySide6.QtWidgets import (QTreeWidget, QTreeWidgetItem, QApplication, QMenu,
+                                QHBoxLayout, QLineEdit, QPushButton, QLabel,
+                                QFrame, QAbstractItemView, QCheckBox)
 from PySide6.QtCore import Qt, QSettings
 from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QKeyEvent, QPainter, QPixmap
 import xml.etree.ElementTree as ET
@@ -152,6 +154,39 @@ def _build_tree(parent_item: QTreeWidgetItem, element: ET.Element,
 
 
 # ---------------------------------------------------------------------------
+# Suchleiste (intern)
+# ---------------------------------------------------------------------------
+
+class _SearchInput(QLineEdit):
+    """QLineEdit das Enter/Shift+Enter/Escape/↑↓ an Callbacks weiterleitet."""
+
+    def __init__(self, on_next, on_prev, on_escape, parent=None):
+        super().__init__(parent)
+        self._on_next   = on_next
+        self._on_prev   = on_prev
+        self._on_escape = on_escape
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        k = event.key()
+        if k == Qt.Key.Key_Escape:
+            self._on_escape()
+            return
+        if k in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                self._on_prev()
+            else:
+                self._on_next()
+            return
+        if k == Qt.Key.Key_Down:
+            self._on_next()
+            return
+        if k == Qt.Key.Key_Up:
+            self._on_prev()
+            return
+        super().keyPressEvent(event)
+
+
+# ---------------------------------------------------------------------------
 # Öffentliches Widget
 # ---------------------------------------------------------------------------
 
@@ -174,6 +209,13 @@ class XmlTreeWidget(QTreeWidget):
         self.header().setStretchLastSection(True)
         self._apply_selection_style(config)
 
+        # Suche
+        self._search_matches: list[QTreeWidgetItem] = []
+        self._search_idx: int = -1
+        self._search_bar = self._create_search_bar()
+        self._search_bar.setParent(self)
+        self._search_bar.hide()
+
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Space:
             item = self.currentItem()
@@ -194,6 +236,9 @@ class XmlTreeWidget(QTreeWidget):
             if mods == ctrl_alt:
                 self.copy_attrs()
                 return
+        if event.key() == Qt.Key.Key_F and mods == ctrl:
+            self.show_search()
+            return
         super().keyPressEvent(event)
 
     def contextMenuEvent(self, event) -> None:
@@ -248,6 +293,157 @@ class XmlTreeWidget(QTreeWidget):
         text = "  ".join(f'{k}="{v}"' for k, v in element.attrib.items()
                          if k != "xmlview-src-idx")
         QApplication.clipboard().setText(text)
+
+    # ------------------------------------------------------------------
+    # Suche
+    # ------------------------------------------------------------------
+
+    def _create_search_bar(self) -> QFrame:
+        bar = QFrame(self)
+        bar.setFrameShape(QFrame.Shape.StyledPanel)
+        bar.setStyleSheet(
+            "QFrame { background: palette(window); border: none; "
+            "border-top: 1px solid palette(mid); }"
+        )
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setSpacing(4)
+
+        self._search_input = _SearchInput(
+            on_next=lambda: self._search_navigate(+1),
+            on_prev=lambda: self._search_navigate(-1),
+            on_escape=self.hide_search,
+        )
+        self._search_input.setPlaceholderText("Suchen…")
+        self._search_input.setMinimumWidth(160)
+        self._search_input.textChanged.connect(self._do_search)
+        layout.addWidget(self._search_input)
+
+        self._search_label = QLabel("–")
+        self._search_label.setMinimumWidth(42)
+        layout.addWidget(self._search_label)
+
+        btn_prev = QPushButton("▲")
+        btn_prev.setFixedSize(24, 24)
+        btn_prev.setToolTip("Vorheriger Treffer  (Shift+Enter)")
+        btn_prev.clicked.connect(lambda: self._search_navigate(-1))
+        layout.addWidget(btn_prev)
+
+        btn_next = QPushButton("▼")
+        btn_next.setFixedSize(24, 24)
+        btn_next.setToolTip("Nächster Treffer  (Enter)")
+        btn_next.clicked.connect(lambda: self._search_navigate(+1))
+        layout.addWidget(btn_next)
+
+        layout.addSpacing(6)
+
+        self._chk_element = QCheckBox("Element")
+        self._chk_element.setChecked(True)
+        self._chk_element.toggled.connect(self._do_search)
+        layout.addWidget(self._chk_element)
+
+        self._chk_value = QCheckBox("Wert")
+        self._chk_value.setChecked(True)
+        self._chk_value.toggled.connect(self._do_search)
+        layout.addWidget(self._chk_value)
+
+        self._chk_attrs = QCheckBox("Attribute")
+        self._chk_attrs.setChecked(True)
+        self._chk_attrs.toggled.connect(self._do_search)
+        layout.addWidget(self._chk_attrs)
+
+        layout.addSpacing(4)
+
+        btn_close = QPushButton("✕")
+        btn_close.setFixedSize(24, 24)
+        btn_close.setToolTip("Suche schließen  (Escape)")
+        btn_close.clicked.connect(self.hide_search)
+        layout.addWidget(btn_close)
+
+        return bar
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if not self._search_bar.isHidden():
+            self._reposition_search_bar()
+
+    def _reposition_search_bar(self) -> None:
+        h = self._search_bar.sizeHint().height()
+        self._search_bar.setGeometry(0, self.height() - h, self.width(), h)
+
+    def show_search(self) -> None:
+        self._reposition_search_bar()
+        self._search_bar.show()
+        self._search_bar.raise_()
+        self._search_input.setFocus()
+        self._search_input.selectAll()
+
+    def hide_search(self) -> None:
+        self._search_bar.hide()
+        self._search_matches = []
+        self._search_idx = -1
+        self.setFocus()
+
+    def _all_items(self) -> list[QTreeWidgetItem]:
+        items: list[QTreeWidgetItem] = []
+        def _walk(parent: QTreeWidgetItem) -> None:
+            for i in range(parent.childCount()):
+                child = parent.child(i)
+                items.append(child)
+                _walk(child)
+        _walk(self.invisibleRootItem())
+        return items
+
+    def _item_matches(self, item: QTreeWidgetItem, text: str) -> bool:
+        if self._chk_element.isChecked() and text in item.text(_COL_ELEMENT).lower():
+            return True
+        if self._chk_value.isChecked()   and text in item.text(_COL_VALUE).lower():
+            return True
+        if self._chk_attrs.isChecked()   and text in item.text(_COL_ATTRS).lower():
+            return True
+        return False
+
+    def _do_search(self) -> None:
+        text = self._search_input.text().lower()
+        if not text:
+            self._search_matches = []
+            self._search_idx = -1
+            self._search_label.setText("–")
+            self._search_input.setStyleSheet("")
+            return
+
+        self._search_matches = [it for it in self._all_items()
+                                 if self._item_matches(it, text)]
+
+        if not self._search_matches:
+            self._search_idx = -1
+            self._search_label.setText("0/0")
+            self._search_input.setStyleSheet("background: #ffcccc;")
+            return
+
+        self._search_input.setStyleSheet("")
+        current = self.currentItem()
+        if current in self._search_matches:
+            self._search_idx = self._search_matches.index(current)
+        else:
+            self._search_idx = 0
+        self._goto_match(self._search_idx)
+
+    def _search_navigate(self, direction: int) -> None:
+        if not self._search_matches:
+            return
+        self._search_idx = (self._search_idx + direction) % len(self._search_matches)
+        self._goto_match(self._search_idx)
+
+    def _goto_match(self, idx: int) -> None:
+        item = self._search_matches[idx]
+        parent = item.parent()
+        while parent is not None:
+            parent.setExpanded(True)
+            parent = parent.parent()
+        self.setCurrentItem(item)
+        self.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtCenter)
+        self._search_label.setText(f"{idx + 1}/{len(self._search_matches)}")
 
     def apply_style_config(self, config: dict) -> None:
         """Übernimmt neue Stil-Einstellungen und stylt alle sichtbaren Items neu."""
