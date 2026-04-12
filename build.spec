@@ -22,7 +22,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='xmlViewer',
+    name='xmlViewerXslv040',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -33,6 +33,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    contents_directory='_xmlViewerXslv040_pyinternal',
 )
 
 coll = COLLECT(
@@ -42,5 +43,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='xmlViewer',
+    name='xmlViewerXslv040',
 )
