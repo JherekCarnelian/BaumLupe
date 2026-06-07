@@ -431,13 +431,19 @@ class MainWindow(QMainWindow):
     def _open_file(self) -> None:
         last_dir = _SHARED_SETTINGS.value("last_dir", str(Path.home()))
         path, _ = QFileDialog.getOpenFileName(
-            self, "XML-Datei öffnen", last_dir,
-            "XML-Dateien (*.xml *.xhtml *.svg);;Alle Dateien (*)"
+            self, "Datei öffnen", last_dir,
+            "Unterstützte Dateien (*.xml *.xhtml *.svg *.json);;"
+            "XML-Dateien (*.xml *.xhtml *.svg);;"
+            "JSON-Dateien (*.json);;"
+            "Alle Dateien (*)"
         )
         if not path:
             return
         _SHARED_SETTINGS.setValue("last_dir", str(Path(path).parent))
-        self._load_xml(path)
+        if Path(path).suffix.lower() == ".json":
+            self._load_json(path)
+        else:
+            self._load_xml(path)
 
     def _load_xml(self, path: str) -> None:
         self.setWindowTitle(f"BaumLupe – {Path(path).name}")
@@ -456,6 +462,24 @@ class MainWindow(QMainWindow):
         self._annotated_xml_tmp = _create_annotated_xml(path)
         for w in self._pane_wrappers:
             w.transform_tab.set_xml_path(self._annotated_xml_tmp)
+
+    def _load_json(self, path: str) -> None:
+        self.setWindowTitle(f"BaumLupe – {Path(path).name}")
+        self.statusBar().showMessage(f"Geladen: {path}")
+        self._xml_label.setText(Path(path).name)
+        self._xml_label.setStyleSheet("")
+
+        self._xml_tree.load_json(path)
+
+        # XSLT-Transforms sind für JSON noch nicht verfügbar → annotated XML aufräumen
+        if self._annotated_xml_tmp:
+            try:
+                os.unlink(self._annotated_xml_tmp)
+            except OSError:
+                pass
+        self._annotated_xml_tmp = None
+        for w in self._pane_wrappers:
+            w.transform_tab.set_xml_path(None)
 
     def _load_xsl(self, path: str) -> None:
         """XSL-Stylesheet in der ersten Pane vorauswählen (CLI-Argument)."""

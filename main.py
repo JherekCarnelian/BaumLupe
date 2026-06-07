@@ -57,7 +57,10 @@ def main() -> None:
 
     if args.xml:
         if os.path.isfile(args.xml):
-            window._load_xml(args.xml)
+            if args.xml.lower().endswith(".json"):
+                window._load_json(args.xml)
+            else:
+                window._load_xml(args.xml)
 
     # Spalte 0: alle XSL-Argumente vor dem ersten --new-column
     for i, xsl in enumerate(args.xsl):

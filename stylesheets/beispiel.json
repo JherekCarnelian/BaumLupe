@@ -1,0 +1,33 @@
+{
+  "bibliothek": {
+    "name": "Stadtbibliothek",
+    "ort": "Berlin",
+    "buecher": [
+      {
+        "isbn": "978-3-16-148410-0",
+        "titel": "Die Verwandlung",
+        "autor": "Franz Kafka",
+        "jahr": 1915,
+        "genre": "Erzählung",
+        "verfuegbar": true
+      },
+      {
+        "isbn": "978-0-06-112008-4",
+        "titel": "To Kill a Mockingbird",
+        "autor": "Harper Lee",
+        "jahr": 1960,
+        "genre": "Roman",
+        "verfuegbar": false
+      },
+      {
+        "isbn": "978-3-518-36836-8",
+        "titel": "Der Prozess",
+        "autor": "Franz Kafka",
+        "jahr": 1925,
+        "genre": "Roman",
+        "verfuegbar": true,
+        "tags": ["klassiker", "kafka", "prozess"]
+      }
+    ]
+  }
+}

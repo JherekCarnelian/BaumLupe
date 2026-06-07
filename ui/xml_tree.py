@@ -6,6 +6,8 @@ zur Laufzeit via apply_style_config() geändert werden.
 """
 
 import copy
+import json as _json
+from pathlib import Path
 
 from PySide6.QtWidgets import (QTreeWidget, QTreeWidgetItem, QApplication, QMenu,
                                 QHBoxLayout, QLineEdit, QPushButton, QLabel,
@@ -518,3 +520,53 @@ class XmlTreeWidget(QTreeWidget):
         self._src_idx_to_item[elem_to_idx[id(root)]] = root_item
         _build_tree(root_item, root, self._style, elem_to_idx, self._src_idx_to_item)
         self.expandToDepth(2)
+
+    def load_json(self, path: str) -> None:
+        """Parst eine JSON-Datei und füllt den Tree."""
+        self.clear()
+        self._src_idx_to_item = {}
+        self._current_path = path
+
+        try:
+            with open(path, encoding="utf-8") as fh:
+                data = _json.load(fh)
+        except (OSError, _json.JSONDecodeError) as exc:
+            QTreeWidgetItem(self, [f"Parse-Fehler: {exc}"])
+            return
+
+        counter = [0]  # veränderlicher Zähler für rekursive Funktion
+
+        def _add(parent, key: str, value):
+            idx = counter[0]
+            counter[0] += 1
+
+            item = QTreeWidgetItem(parent)
+            item.setData(_COL_ELEMENT, Qt.ItemDataRole.UserRole + 1, idx)
+
+            if isinstance(value, dict):
+                item.setText(_COL_ELEMENT, f"{{{key}}}" if key else "{}")
+                item.setText(_COL_VALUE, f"{len(value)} Einträge")
+                _apply_style(item, self._style)
+                self._src_idx_to_item[idx] = item
+                for k, v in value.items():
+                    _add(item, k, v)
+            elif isinstance(value, list):
+                item.setText(_COL_ELEMENT, f"[{key}]" if key else "[]")
+                item.setText(_COL_VALUE, f"{len(value)} Elemente")
+                _apply_style(item, self._style)
+                self._src_idx_to_item[idx] = item
+                for i, v in enumerate(value):
+                    _add(item, str(i), v)
+            else:
+                item.setText(_COL_ELEMENT, key)
+                item.setText(_COL_VALUE, "" if value is None else str(value))
+                item.setText(_COL_ATTRS, type(value).__name__ if value is not None else "null")
+                _apply_style(item, self._style)
+                self._src_idx_to_item[idx] = item
+
+        _add(self, Path(path).name, data)
+        self.expandToDepth(2)
+
+    def find_by_json_idx(self, idx: int) -> QTreeWidgetItem | None:
+        """Gibt das Tree-Item zum gegebenen JSON-Knoten-Index zurück."""
+        return self._src_idx_to_item.get(idx)
