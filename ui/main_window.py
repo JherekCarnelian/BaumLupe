@@ -1,4 +1,4 @@
-"""Hauptfenster des XML-Viewers – Dual-Pane: XML-Eingabe links, mehrere Transform-Panes rechts.
+"""Hauptfenster von BaumLupe – Dual-Pane: XML-Eingabe links, mehrere Transform-Panes rechts.
 
 Die rechte Seite enthält einen vertikalen QSplitter, der zur Laufzeit um weitere
 TransformTab-Panes erweitert werden kann ("+"-Button). Jede Pane hat einen "✕"-Button
@@ -24,7 +24,7 @@ from ui.transform_tab import TransformTab
 
 _STYLESHEETS_DIR = str(Path(__file__).parent.parent / "stylesheets")
 
-_SHARED_SETTINGS = QSettings("xmlviewer", "xmlviewer")
+_SHARED_SETTINGS = QSettings("BaumLupe", "BaumLupe")
 
 
 def _create_annotated_xml(path: str) -> str:
@@ -78,7 +78,7 @@ class _TransformPaneWrapper(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("XML Viewer")
+        self.setWindowTitle("BaumLupe")
         self.resize(1400, 700)
 
         self._geo_key = f"geometry_{os.getpid()}_{id(self)}"
@@ -370,8 +370,8 @@ class MainWindow(QMainWindow):
         version = QApplication.applicationVersion()
         QMessageBox.about(
             self,
-            "Über XML Viewer",
-            f"<b>XML Viewer</b> {version}<br><br>"
+            "Über BaumLupe",
+            f"<b>BaumLupe</b> {version}<br><br>"
             "Dual-Pane XML-Viewer mit XSLT 3.0 Transformation.<br>"
             "Mehrere Transform-Panes zur Laufzeit erweiterbar.<br><br>"
             "Tech-Stack: PySide6 · saxonche (Saxon/C)"
@@ -440,7 +440,7 @@ class MainWindow(QMainWindow):
         self._load_xml(path)
 
     def _load_xml(self, path: str) -> None:
-        self.setWindowTitle(f"XML Viewer – {Path(path).name}")
+        self.setWindowTitle(f"BaumLupe – {Path(path).name}")
         self.statusBar().showMessage(f"Geladen: {path}")
         self._xml_label.setText(Path(path).name)
         self._xml_label.setStyleSheet("")

@@ -1,4 +1,10 @@
-# XML Viewer (saxonche)
+# BaumLupe (saxonche)
+
+> ⚠️ **Status: experimentell – work in progress.**
+> BaumLupe ist noch **nicht produktiv nutzbar** und nicht out-of-the-box
+> selbsterklärend. Persönliches Projekt in früher Entwicklung; Issues und
+> Pull Requests werden evtl. nicht beantwortet. Nutzung auf eigene Gefahr,
+> ohne Gewähr.
 
 Schlanker XML-Viewer mit XSLT 3.0-Unterstützung via saxonche (Saxon/C Python-Bindings).
 Keine Node.js-Abhängigkeit.
@@ -32,13 +38,13 @@ python main.py stylesheets\bestellungen.xml stylesheets\nur_adressen.xsl
 ```bash
 chmod +x build.sh
 ./build.sh
-# Ergebnis: dist/xmlViewer/xmlViewer
+# Ergebnis: dist/BaumLupe/BaumLupe
 ```
 
 **Windows:**
 ```bat
 build.bat
-rem Ergebnis: dist\xmlViewer\xmlViewer.exe
+rem Ergebnis: dist\BaumLupe\BaumLupe.exe
 ```
 
 ## Architektur
@@ -46,3 +52,7 @@ rem Ergebnis: dist\xmlViewer\xmlViewer.exe
 - `saxonche.PySaxonProcessor` führt XSLT 3.0 direkt in Python aus
 - Transformation läuft in `QThread` → UI bleibt reaktionsfähig
 - Ergebnis wird als XML-Tree dargestellt (bei XML-Output-Stylesheets)
+
+## Lizenz
+
+[MIT](LICENSE) — © 2026 JherekCarnelian.

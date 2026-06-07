@@ -9,4 +9,4 @@ if exist dist  rmdir /s /q dist
 python -m PyInstaller build.spec --onedir --windowed --clean
 
 echo.
-echo Build fertig: dist\xmlViewer\xmlViewer.exe
+echo Build fertig: dist\BaumLupe\BaumLupe.exe

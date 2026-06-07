@@ -59,7 +59,7 @@ def _coerce(value, default):
 
 def load_style_config() -> dict:
     """Liest Stil-Einstellungen aus QSettings; fehlende Keys werden mit STYLE_DEFAULTS gefüllt."""
-    s = QSettings("xmlviewer", "xmlviewer")
+    s = QSettings("BaumLupe", "BaumLupe")
     return {
         key: _coerce(s.value(f"styles/{key}", default), default)
         for key, default in STYLE_DEFAULTS.items()
@@ -68,7 +68,7 @@ def load_style_config() -> dict:
 
 def save_style_config(config: dict) -> None:
     """Schreibt Stil-Einstellungen in QSettings."""
-    s = QSettings("xmlviewer", "xmlviewer")
+    s = QSettings("BaumLupe", "BaumLupe")
     for key, value in config.items():
         s.setValue(f"styles/{key}", value)
 

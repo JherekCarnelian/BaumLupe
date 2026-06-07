@@ -21,7 +21,7 @@ _JUMP_SHORTCUTS = ["F3", "Ctrl+Return", "Ctrl+Space"]
 from ui.xml_tree import XmlTreeWidget
 
 # Einstellungsdatei im Aufruf-Verzeichnis (Dot-File → in Dateimanagern versteckt)
-_PREFS_FILE = Path.cwd() / ".xmlviewer_prefs.json"
+_PREFS_FILE = Path.cwd() / ".baumlupe_prefs.json"
 _MAX_RECENT = 10
 
 

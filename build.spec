@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller-Spec für xmlViewer (saxonche-Version)
+# PyInstaller-Spec für BaumLupe (saxonche-Version)
 # --onedir ist Pflicht, da saxonche native DLLs mitbringt.
 
 a = Analysis(
@@ -22,7 +22,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='xmlViewerXslv040',
+    name='BaumLupe',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -33,7 +33,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    contents_directory='_xmlViewerXslv040_pyinternal',
+    contents_directory='_BaumLupe_pyinternal',
 )
 
 coll = COLLECT(
@@ -43,5 +43,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='xmlViewerXslv040',
+    name='BaumLupe',
 )

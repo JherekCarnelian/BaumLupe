@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Einstiegspunkt für den XML-Viewer.
+"""Einstiegspunkt für BaumLupe.
 
 Aufruf:
     ./run.sh [datei.xml [xsl1.xsl [xsl2.xsl ...]] [--new-column xsl3.xsl ...]] [--x X] [--y Y]
@@ -30,7 +30,7 @@ from ui.main_window import MainWindow
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="XML Viewer")
+    parser = argparse.ArgumentParser(description="BaumLupe")
     parser.add_argument("xml", nargs="?", help="XML-Datei")
     parser.add_argument("xsl", nargs="*",
                         help="XSL-Stylesheet(s) – jedes öffnet eine Pane in Spalte 0")
@@ -44,9 +44,9 @@ def main() -> None:
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
-    app.setApplicationName("XML Viewer")
+    app.setApplicationName("BaumLupe")
     app.setApplicationVersion(__version__)
-    app.setOrganizationName("xmlviewer")
+    app.setOrganizationName("BaumLupe")
 
     window = MainWindow()
     window.show()

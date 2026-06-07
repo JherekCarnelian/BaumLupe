@@ -1,4 +1,4 @@
-"""Stil-Einstellungs-Dialog für den XML-Viewer.
+"""Stil-Einstellungs-Dialog für BaumLupe.
 
 Ermöglicht das Anpassen von Farben, Schriften und Spaltenbreiten mit
 Live-Vorschau direkt im Hauptfenster. Einstellungen werden in QSettings

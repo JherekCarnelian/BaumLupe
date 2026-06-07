@@ -11,7 +11,7 @@
         <land>DE</land>
       </adresse>
       <kontakt>
-        <email>info@mueller-gmbh.de</email>
+        <email>info@example.com</email>
         <telefon>030-123456</telefon>
       </kontakt>
     </kunde>
@@ -45,7 +45,7 @@
         <land>DE</land>
       </adresse>
       <kontakt>
-        <email>einkauf@schmidt-partner.de</email>
+        <email>einkauf@example.org</email>
         <telefon>089-987654</telefon>
       </kontakt>
     </kunde>

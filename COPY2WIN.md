@@ -1,4 +1,4 @@
-# XML Viewer v10 – Test auf Windows
+# BaumLupe – Test auf Windows
 
 ## Was kopieren?
 

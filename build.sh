@@ -6,4 +6,4 @@ cd "$(dirname "$0")"
 python3 -m PyInstaller build.spec --onedir --clean
 
 echo ""
-echo "Build fertig: dist/xmlViewer/xmlViewer"
+echo "Build fertig: dist/BaumLupe/BaumLupe"

@@ -9,6 +9,7 @@ dist/
 *.spec.bak
 
 # Lokale Nutzer-Prefs (projektverzeichnis-spezifisch, nicht versionieren)
+.baumlupe_prefs.json
 .xmlviewer_prefs.json
 
 # Temporäre Dateien
