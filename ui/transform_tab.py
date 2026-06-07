@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QComboBox, QLabel, QFileDialog, QMessageBox, QMenu,
+    QComboBox, QLabel, QFileDialog, QMessageBox, QMenu, QTextBrowser, QStackedWidget,
 )
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
@@ -148,9 +148,17 @@ class TransformTab(QWidget):
         toolbar.addStretch()
         layout.addLayout(toolbar)
 
-        # Ergebnis als XML-Tree – gleiche Komponente wie der Quell-Tab
+        # Ergebnis: XML-Tree oder HTML/Text-Fallback – je nach Ausgabeformat
+        self._stack = QStackedWidget()
+
         self._tree = XmlTreeWidget()
-        layout.addWidget(self._tree)
+        self._stack.addWidget(self._tree)   # Index 0: XML-Tree
+
+        self._html_view = QTextBrowser()
+        self._html_view.setOpenLinks(False)
+        self._stack.addWidget(self._html_view)  # Index 1: HTML/Text-Fallback
+
+        layout.addWidget(self._stack)
 
         # Automatisch transformieren wenn Stylesheet gewechselt wird
         self._combo.currentIndexChanged.connect(self._auto_transform)
@@ -255,6 +263,7 @@ class TransformTab(QWidget):
         """Startet einen TransformWorker und verdrängt einen evtl. laufenden."""
         self._btn_transform.setEnabled(False)
         self._tree.clear()
+        self._html_view.clear()
 
         # Laufenden Worker abbrechen
         if self._worker and self._worker.isRunning():
@@ -274,13 +283,26 @@ class TransformTab(QWidget):
         self._btn_transform.setEnabled(True)
         if self._current_xsl:
             self._add_to_recent(self._current_xsl)
-        # Ergebnis in Tempfile schreiben und als XML-Tree laden
-        tmp = tempfile.NamedTemporaryFile(suffix=".xml", delete=False,
-                                          mode="w", encoding="utf-8")
-        tmp.write(result)
-        tmp.close()
-        self._tmp_path = tmp.name
-        self._tree.load_xml(tmp.name)
+
+        # Erst als XML versuchen; bei Parse-Fehler auf HTML/Text-Ansicht zurückfallen
+        import xml.etree.ElementTree as _ET
+        try:
+            _ET.fromstring(result.encode())
+            is_xml = True
+        except _ET.ParseError:
+            is_xml = False
+
+        if is_xml:
+            tmp = tempfile.NamedTemporaryFile(suffix=".xml", delete=False,
+                                              mode="w", encoding="utf-8")
+            tmp.write(result)
+            tmp.close()
+            self._tmp_path = tmp.name
+            self._tree.load_xml(tmp.name)
+            self._stack.setCurrentIndex(0)
+        else:
+            self._html_view.setHtml(result)
+            self._stack.setCurrentIndex(1)
 
     @property
     def result_tree(self):
