@@ -160,7 +160,7 @@ class TransformTab(QWidget):
     # Slots
     # ------------------------------------------------------------------
 
-    def set_xml_path(self, path: str) -> None:
+    def set_xml_path(self, path: str | None) -> None:
         self._xml_path = path
         self._auto_transform()
 
