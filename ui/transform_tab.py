@@ -24,6 +24,25 @@ from ui.xml_tree import XmlTreeWidget
 _PREFS_FILE = Path.cwd() / ".baumlupe_prefs.json"
 _MAX_RECENT = 10
 
+# Platzhalter-Eintrag in der Stylesheet-Auswahl (keine echte Datei dahinter)
+_NO_XSL_LABEL = "— Stylesheet wählen —"
+
+# Eingebautes Default-Stylesheet: wird angezeigt solange in einer Pane kein
+# echtes XSL gewählt ist. Erzeugt einen Hinweistext statt einer leeren Pane.
+_DEFAULT_HINT_XSL = """<?xml version="1.0" encoding="UTF-8"?>
+<xsl:stylesheet version="3.0"
+  xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+  <xsl:output method="xml" indent="yes" encoding="UTF-8"/>
+  <xsl:template match="/">
+    <Hinweis>
+      <Titel>Kein Stylesheet ausgewählt</Titel>
+      <Schritt>Oben in der Liste „Stylesheet:“ ein XSL auswählen.</Schritt>
+      <Schritt>Oder auf „Durchsuchen…“ klicken, um eine eigene XSL-Datei zu laden.</Schritt>
+    </Hinweis>
+  </xsl:template>
+</xsl:stylesheet>
+"""
+
 
 def _load_prefs() -> dict:
     """Liest die Einstellungsdatei; gibt leeres Dict zurück bei Fehler."""
@@ -52,18 +71,27 @@ class TransformWorker(QThread):
     result_ready = Signal(str)  # Transformations-Ergebnis als String
     error = Signal(str)         # Fehlermeldung bei Fehler
 
-    def __init__(self, xml_path: str, xsl_path: str):
+    def __init__(self, xml_path: str | None, xsl_path: str | None = None,
+                 xsl_text: str | None = None):
         super().__init__()
         self._xml_path = xml_path
         self._xsl_path = xsl_path
+        self._xsl_text = xsl_text
 
     def run(self) -> None:
         try:
             from saxonche import PySaxonProcessor
             with PySaxonProcessor(license=False) as proc:
                 xslt = proc.new_xslt30_processor()
-                exe = xslt.compile_stylesheet(stylesheet_file=self._xsl_path)
-                doc = proc.parse_xml(xml_file_name=self._xml_path)
+                if self._xsl_text is not None:
+                    exe = xslt.compile_stylesheet(stylesheet_text=self._xsl_text)
+                else:
+                    exe = xslt.compile_stylesheet(stylesheet_file=self._xsl_path)
+                # Default-Hinweis braucht kein echtes Quelldokument → Dummy
+                if self._xml_path:
+                    doc = proc.parse_xml(xml_file_name=self._xml_path)
+                else:
+                    doc = proc.parse_xml(xml_text="<_/>")
                 result = exe.transform_to_string(xdm_node=doc)
             if result is None:
                 self.error.emit("Transformation ergab kein Ergebnis.")
@@ -138,8 +166,13 @@ class TransformTab(QWidget):
         self._tree.customContextMenuRequested.connect(self._show_context_menu)
 
     def _refresh_stylesheet_list(self) -> None:
+        # Während des Befüllens keine (mehrfachen) Auto-Transforms auslösen
+        self._combo.blockSignals(True)
         self._combo.clear()
         stylesheets_dir = Path(self._stylesheets_dir).resolve()
+
+        # Platzhalter: keine Auswahl → Default-Hinweis wird angezeigt
+        self._combo.addItem(_NO_XSL_LABEL, None)
 
         # Zuletzt verwendete externe Dateien zuerst (nicht im stylesheets-Verzeichnis)
         for path in self._recent:
@@ -150,11 +183,15 @@ class TransformTab(QWidget):
         for f in sorted(stylesheets_dir.glob("*.xsl")):
             self._combo.addItem(f.name, str(f))
 
-        # Zuletzt verwendetes Stylesheet vorauswählen
+        # Zuletzt verwendetes Stylesheet vorauswählen, sonst Platzhalter (Index 0)
         if self._recent:
             idx = self._combo.findData(self._recent[0])
             if idx >= 0:
                 self._combo.setCurrentIndex(idx)
+
+        self._combo.blockSignals(False)
+        # Einmalig den passenden Zustand herstellen (Hinweis oder Transformation)
+        self._auto_transform()
 
     # ------------------------------------------------------------------
     # Slots
@@ -173,8 +210,14 @@ class TransformTab(QWidget):
         self._combo.setCurrentIndex(idx)  # löst currentIndexChanged → _auto_transform aus
 
     def _auto_transform(self) -> None:
-        """Transformation starten wenn beide Eingaben vorhanden sind."""
-        if self._xml_path and self._combo.currentData():
+        """Reagiert auf Stylesheet-/XML-Wechsel.
+
+        Ohne Stylesheet-Auswahl wird der Default-Hinweis angezeigt; mit Auswahl
+        wird transformiert, sobald auch eine XML-Datei vorhanden ist.
+        """
+        if not self._combo.currentData():
+            self._show_hint()
+        elif self._xml_path:
             self._run_transform()
 
     def _browse_xsl(self) -> None:
@@ -191,16 +234,25 @@ class TransformTab(QWidget):
         self._combo.setCurrentIndex(idx)
 
     def _run_transform(self) -> None:
+        xsl_path = self._combo.currentData()
+        if not xsl_path:
+            # Kein Stylesheet gewählt → Default-Hinweis statt leerer Pane
+            self._show_hint()
+            return
         if not self._xml_path:
             QMessageBox.information(self, "Keine XML-Datei",
                                     "Bitte zuerst eine XML-Datei öffnen.")
             return
-        xsl_path = self._combo.currentData()
-        if not xsl_path:
-            QMessageBox.information(self, "Kein Stylesheet",
-                                    "Bitte ein XSL-Stylesheet wählen.")
-            return
+        self._start_worker(xsl_path=xsl_path, current_xsl=xsl_path)
 
+    def _show_hint(self) -> None:
+        """Default-Stylesheet ausführen: zeigt einen Hinweis statt leerer Pane."""
+        self._start_worker(xsl_text=_DEFAULT_HINT_XSL, current_xsl=None)
+
+    def _start_worker(self, *, xsl_path: str | None = None,
+                      xsl_text: str | None = None,
+                      current_xsl: str | None) -> None:
+        """Startet einen TransformWorker und verdrängt einen evtl. laufenden."""
         self._btn_transform.setEnabled(False)
         self._tree.clear()
 
@@ -211,8 +263,9 @@ class TransformTab(QWidget):
             self._worker.quit()
             self._worker.wait()
 
-        self._current_xsl = xsl_path
-        self._worker = TransformWorker(self._xml_path, xsl_path)
+        self._current_xsl = current_xsl
+        self._worker = TransformWorker(self._xml_path, xsl_path=xsl_path,
+                                       xsl_text=xsl_text)
         self._worker.result_ready.connect(self._on_result)
         self._worker.error.connect(self._on_error)
         self._worker.start()
