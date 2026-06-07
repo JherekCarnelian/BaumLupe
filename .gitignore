@@ -15,6 +15,9 @@ dist/
 *.tmp
 /tmp/
 
+# Claude-Terminal-Mitschnitte (Inhalt ist im Session-Transcript gesichert)
+*claude-terminal.copy.txt
+
 # IDE
 .venv/
 venv/
